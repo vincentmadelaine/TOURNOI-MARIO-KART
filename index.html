@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tournoi Mario Kart — AS Joliot-Curie</title>
+<style>
+  :root{
+    --bg:#14161c; --bg-alt:#1c1f28; --bg-card:#20232d;
+    --text:#f1ede3; --text-dim:#9198a8;
+    --yellow:#ffc93c; --red:#e8483c; --blue:#3d8bfd; --gold:#d4af37;
+    --line:#2a2e38; --green:#39c98a;
+    --mono: ui-monospace, 'SF Mono', 'Courier New', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system, 'Segoe UI', Roboto, sans-serif;
+    min-height:100vh; padding-bottom:70px;
+  }
+  header{
+    padding:16px 16px 14px; position:relative; overflow:hidden;
+    background:linear-gradient(180deg, var(--bg-alt), var(--bg));
+  }
+  .headerTop{ display:flex; align-items:center; justify-content:flex-end; gap:10px; }
+  .stripe{
+    height:8px; width:100%;
+    background:repeating-linear-gradient(-45deg, var(--yellow) 0 14px, #0000 14px 28px, var(--red) 28px 42px, #0000 42px 56px);
+    opacity:.9;
+  }
+  h1{
+    font-size:22px; letter-spacing:.5px; text-transform:uppercase;
+    font-style:italic; font-weight:800; margin-top:14px;
+  }
+  h1 span{color:var(--yellow);}
+  .subtitle{color:var(--text-dim); font-size:12.5px; margin-top:4px;}
+  .lockbtn{
+    background:var(--bg-card); border:1px solid var(--line); color:var(--text-dim);
+    font-size:11px; padding:7px 10px; border-radius:8px; letter-spacing:.5px;
+    text-transform:uppercase; cursor:pointer; flex:0 0 auto;
+  }
+  .lockbtn.unlocked{color:var(--green); border-color:var(--green);}
+
+  nav{
+    display:flex; gap:6px; padding:10px 14px; overflow-x:auto;
+    border-bottom:1px solid var(--line);
+  }
+  nav button{
+    flex:0 0 auto; background:none; border:1px solid var(--line); color:var(--text-dim);
+    font-size:12px; text-transform:uppercase; letter-spacing:.4px; font-weight:700;
+    padding:9px 13px; border-radius:8px; cursor:pointer; white-space:nowrap;
+  }
+  nav button.active{background:var(--yellow); color:#14161c; border-color:var(--yellow);}
+
+  main{padding:16px;}
+  .card{
+    background:var(--bg-card); border:1px solid var(--line); border-radius:14px;
+    padding:16px; margin-bottom:14px;
+  }
+  .card h2{font-size:14px; text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; color:var(--yellow);}
+  label{display:block; font-size:12px; color:var(--text-dim); margin:10px 0 5px;}
+  input[type=text], input[type=number], input[type=password], select{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:10px 11px; border-radius:8px; font-size:14px;
+  }
+  input:focus, select:focus{outline:2px solid var(--blue);}
+  .row{display:flex; gap:10px;}
+  .row > *{flex:1;}
+  button.primary{
+    background:var(--yellow); color:#14161c; border:none; font-weight:800;
+    padding:12px 16px; border-radius:9px; font-size:13px; text-transform:uppercase;
+    letter-spacing:.5px; cursor:pointer; margin-top:12px;
+  }
+  button.secondary{
+    background:none; border:1px solid var(--blue); color:var(--blue); font-weight:700;
+    padding:10px 14px; border-radius:9px; font-size:12.5px; cursor:pointer; margin-top:8px;
+  }
+  button.danger{
+    background:none; border:1px solid var(--red); color:var(--red); font-weight:700;
+    padding:8px 12px; border-radius:9px; font-size:12px; cursor:pointer;
+  }
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  .playerchip{
+    display:inline-flex; align-items:center; gap:6px; background:var(--bg);
+    border:1px solid var(--line); border-radius:20px; padding:6px 10px; margin:3px 4px 3px 0; font-size:12.5px;
+  }
+  .playerchip button{background:none; border:none; color:var(--red); cursor:pointer; font-weight:900; font-size:13px;}
+
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th{text-align:left; color:var(--text-dim); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line);}
+  td{padding:8px 8px; border-bottom:1px solid var(--line);}
+  tr.rank1 td:first-child{color:var(--gold); font-weight:800;}
+  .pts{font-family:var(--mono); font-weight:700; color:var(--yellow);}
+
+  .manche{
+    background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px;
+  }
+  .manche .label{font-weight:800; font-size:12.5px; text-transform:uppercase; letter-spacing:.3px;}
+  .manche .status{font-size:11px; color:var(--text-dim); margin-top:2px;}
+  .manche .status.done{color:var(--green);}
+  .manche .players{margin-top:8px; font-size:13px;}
+  .posrow{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-top:1px solid var(--line);}
+  .posrow:first-of-type{border-top:none;}
+  .posrow select{width:90px;}
+
+  .empty{color:var(--text-dim); font-size:13px; text-align:center; padding:30px 10px;}
+  .modal-bg{
+    position:fixed; inset:0; background:#000c; display:flex; align-items:center; justify-content:center;
+    z-index:50; padding:20px;
+  }
+  .modal{background:var(--bg-card); border:1px solid var(--line); border-radius:14px; padding:20px; width:100%; max-width:340px;}
+  .searchbox{margin-bottom:12px;}
+  .badge{display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:20px; font-weight:800; text-transform:uppercase;}
+  .badge.or{background:var(--gold); color:#14161c;}
+  .badge.argent{background:#c9cdd6; color:#14161c;}
+  .podium{display:flex; gap:10px; margin-top:10px;}
+  .podium .place{flex:1; text-align:center; background:var(--bg); border-radius:10px; padding:14px 6px; border:1px solid var(--line);}
+  .podium .place.p1{border-color:var(--gold);}
+  .checklist{max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px; margin-top:6px;}
+  .checkitem{display:flex; align-items:center; gap:8px; padding:5px 2px; font-size:13px;}
+  small.hint{display:block; color:var(--text-dim); font-size:11.5px; margin-top:4px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="headerTop">
+    <span id="syncIndicator" style="font-size:16px;" title="Statut de synchronisation">●</span>
+    <button class="lockbtn" id="lockBtn">🔒 Admin</button>
+  </div>
+  <h1>AS Joliot-Curie <span>Mario Kart</span></h1>
+  <div class="subtitle">Tournoi solidaire — soirée crêpes & manettes</div>
+</header>
+<div class="stripe"></div>
+
+<nav id="tabs"></nav>
+<main id="content"></main>
+
+<div id="modalRoot"></div>
+
+<script>
+// ⚠️ Colle ici l'URL de ton déploiement Google Apps Script (se termine par /exec)
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJwfhbE01SilfQ7vjQBkyN2hi6q2sqX0zVzWqKqplbnmtGbdFigJlpAXBqORWxI4P3lw/exec';
+
+let data = { config:null, players:[], manches:[], status:'setup' };
+let unlocked = false;
+let currentTab = 'classement';
+let searchName = '';
+
+// ---------- Storage (Google Sheets via Apps Script) ----------
+let syncStatus = 'ok'; // 'ok' | 'error' | 'unconfigured'
+
+async function loadData(){
+  if(APPS_SCRIPT_URL === 'REMPLACE_MOI'){ syncStatus='unconfigured'; return; }
+  try{
+    const res = await fetch(APPS_SCRIPT_URL);
+    const json = await res.json();
+    if(json && json.config !== undefined) data = json;
+    syncStatus = 'ok';
+  }catch(e){
+    console.error('Chargement impossible', e);
+    syncStatus = 'error';
+  }
+}
+async function saveData(){
+  if(APPS_SCRIPT_URL === 'REMPLACE_MOI'){ syncStatus='unconfigured'; updateSyncIndicator(); return; }
+  try{
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify(data)
+    });
+    syncStatus = 'ok';
+  }catch(e){
+    console.error('Sauvegarde impossible', e);
+    syncStatus = 'error';
+  }
+  updateSyncIndicator();
+}
+function updateSyncIndicator(){
+  const el = document.getElementById('syncIndicator');
+  if(!el) return;
+  const map = {
+    ok: ['●', 'var(--green)', 'Synchronisé (visible par tous)'],
+    error: ['●', 'var(--red)', 'Connexion impossible — vérifie ta connexion internet'],
+    unconfigured: ['●', 'var(--yellow)', "L'URL Google Apps Script n'est pas encore configurée dans le code"]
+  };
+  const [dot, color, title] = map[syncStatus];
+  el.textContent = dot;
+  el.style.color = color;
+  el.title = title;
+}
+
+// ---------- Helpers ----------
+function uid(p){ return 'j'+p; }
+function playerName(id){ const p = data.players.find(x=>x.id===id); return p ? p.name : '?'; }
+function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function pairKey(a,b){ return [a,b].sort().join('|'); }
+
+function scoreRepeats(order, groupSize, used){
+  let r=0;
+  for(let i=0;i<order.length;i+=groupSize){
+    const g=order.slice(i,i+groupSize);
+    for(let x=0;x<g.length;x++) for(let y=x+1;y<g.length;y++) if(used.has(pairKey(g[x],g[y]))) r++;
+  }
+  return r;
+}
+function generateRound(ids, groupSize, used){
+  let best=null, bestScore=Infinity;
+  for(let a=0;a<60;a++){
+    const order=shuffle(ids);
+    const s=scoreRepeats(order, groupSize, used);
+    if(s<bestScore){ bestScore=s; best=order; if(s===0) break; }
+  }
+  const groups=[];
+  for(let i=0;i<best.length;i+=groupSize) groups.push(best.slice(i,i+groupSize));
+  groups.forEach(g=>{ for(let x=0;x<g.length;x++) for(let y=x+1;y<g.length;y++) used.add(pairKey(g[x],g[y])); });
+  return groups;
+}
+function generateSchedule(){
+  const ids = data.players.map(p=>p.id);
+  const used = new Set();
+  const manches=[];
+  let mid=1;
+  for(let t=1; t<=data.config.tours; t++){
+    const groups = generateRound(ids, data.config.groupSize, used);
+    groups.forEach((g,gi)=>{
+      const poste = (gi % data.config.postes) + 1;
+      manches.push({ id:'q'+(mid++), phase:'qualif', isFinale:false,
+        label:`Tour ${t} · Groupe ${gi+1} (Poste ${poste})`, players:g, results:{} });
+    });
+  }
+  return manches;
+}
+function playersChipsHtml(){
+  return data.players.map(p=>`<span class="playerchip">${p.name} <button data-del="${p.id}">✕</button></span>`).join('')
+    || '<span style="color:var(--text-dim); font-size:12.5px;">Aucun joueur pour le moment.</span>';
+}
+function refreshPlayersUI(){
+  const wrap = document.getElementById('playersChipsWrap');
+  if(wrap) wrap.innerHTML = playersChipsHtml();
+  const count = document.getElementById('playersCountSpan');
+  if(count) count.textContent = data.players.length;
+  const gen = document.getElementById('genBtn');
+  if(gen) gen.disabled = !data.config || data.players.length < 2;
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick = async ()=>{
+    data.players = data.players.filter(p=>p.id!==b.dataset.del);
+    await saveData();
+    refreshPlayersUI();
+  });
+}
+function pointsFor(position){
+  const t = data.config.pointsTable;
+  return t[position-1] !== undefined ? t[position-1] : 0;
+}
+function classementGeneral(){
+  const totals={};
+  data.players.forEach(p=>totals[p.id]=0);
+  data.manches.filter(m=>m.phase==='qualif').forEach(m=>{
+    Object.entries(m.results).forEach(([pid,pos])=>{ totals[pid] = (totals[pid]||0) + pointsFor(pos); });
+  });
+  return data.players.map(p=>({id:p.id, name:p.name, pts:totals[p.id]||0}))
+    .sort((a,b)=>b.pts-a.pts);
+}
+function mancheComplete(m){
+  return m.players.every(pid => m.results[pid] !== undefined);
+}
+function qualifsComplete(){
+  const qm = data.manches.filter(m=>m.phase==='qualif');
+  return qm.length>0 && qm.every(mancheComplete);
+}
+
+// ---------- Render root ----------
+function render(){
+  renderTabs();
+  renderContent();
+}
+function renderTabs(){
+  const tabs = [['classement','Classement'],['planning','Planning'],['finales','Finales']];
+  if(unlocked) tabs.push(['reglages','Réglages'], ['scores','Scores']);
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = tabs.map(([id,label]) =>
+    `<button data-tab="${id}" class="${currentTab===id?'active':''}">${label}</button>`
+  ).join('');
+  nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{ currentTab=b.dataset.tab; render(); });
+}
+
+function renderContent(){
+  const el = document.getElementById('content');
+  if(!data.config && currentTab!=='reglages'){
+    el.innerHTML = `<div class="card"><div class="empty">Le tournoi n'est pas encore configuré.<br>L'organisateur doit se connecter en mode admin pour le paramétrer.</div></div>`;
+    return;
+  }
+  if(currentTab==='classement') el.innerHTML = viewClassement();
+  else if(currentTab==='planning') el.innerHTML = viewPlanning();
+  else if(currentTab==='finales') el.innerHTML = viewFinales();
+  else if(currentTab==='reglages' && unlocked) el.innerHTML = viewReglages();
+  else if(currentTab==='scores' && unlocked) el.innerHTML = viewScores();
+  attachHandlers();
+}
+
+// ---------- Vue Classement ----------
+function viewClassement(){
+  const rows = classementGeneral();
+  if(rows.length===0) return `<div class="card"><div class="empty">Aucun joueur enregistré pour l'instant.</div></div>`;
+  return `<div class="card">
+    <h2>Classement général — Qualifications</h2>
+    <table><thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead><tbody>
+    ${rows.map((r,i)=>`<tr class="${i===0?'rank1':''}"><td>${i+1}</td><td>${r.name}</td><td class="pts">${r.pts}</td></tr>`).join('')}
+    </tbody></table>
+    <small class="hint">Barème : ${data.config.pointsTable.map((p,i)=>`${i+1}ᵉ = ${p}pt`).join(' · ')}</small>
+  </div>`;
+}
+
+// ---------- Vue Planning ----------
+function viewPlanning(){
+  const qm = data.manches.filter(m=>m.phase==='qualif');
+  if(qm.length===0) return `<div class="card"><div class="empty">Aucune manche générée pour le moment.</div></div>`;
+  const filtered = searchName.trim()
+    ? qm.filter(m=>m.players.some(pid=>playerName(pid).toLowerCase().includes(searchName.toLowerCase())))
+    : qm;
+  return `<div class="card">
+    <input class="searchbox" type="text" id="searchInput" placeholder="Rechercher un joueur…" value="${searchName}">
+    ${filtered.map(m=>`
+      <div class="manche">
+        <div class="label">${m.label}</div>
+        <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':'À venir'}</div>
+        <div class="players">${m.players.map(pid=>playerName(pid)).join(' · ')}</div>
+      </div>`).join('') || `<div class="empty">Aucun résultat pour ce joueur.</div>`}
+  </div>`;
+}
+
+// ---------- Vue Finales ----------
+function viewFinales(){
+  const fm = data.manches.filter(m=>m.phase!=='qualif');
+  const podiumManche = [...fm].reverse().find(m=>m.isFinale && mancheComplete(m));
+  let html = '';
+  if(podiumManche){
+    const ranked = Object.entries(podiumManche.results).sort((a,b)=>a[1]-b[1]);
+    html += `<div class="card"><h2>🏆 Podium — ${podiumManche.label}</h2>
+      <div class="podium">
+        ${ranked.slice(0,3).map(([pid,pos],i)=>`
+          <div class="place p${i+1}">
+            <div style="font-size:20px;">${i===0?'🥇':i===1?'🥈':'🥉'}</div>
+            <div style="font-weight:700; font-size:12.5px; margin-top:4px;">${playerName(pid)}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+  if(qualifsComplete()){
+    const ranked = classementGeneral();
+    const or = ranked.slice(0, data.config.qualifiedOr);
+    const argent = ranked.slice(data.config.qualifiedOr);
+    html += `<div class="card"><h2>Répartition après qualifications</h2>
+      <p style="font-size:12.5px; margin-bottom:8px;"><span class="badge or">Tableau Or</span> ${or.map(r=>r.name).join(', ') || '—'}</p>
+      <p style="font-size:12.5px;"><span class="badge argent">Tableau Argent</span> ${argent.map(r=>r.name).join(', ') || '—'}</p>
+    </div>`;
+  } else {
+    html += `<div class="card"><div class="empty">La répartition Or / Argent apparaîtra une fois toutes les qualifications terminées.</div></div>`;
+  }
+  if(fm.length){
+    html += `<div class="card"><h2>Manches finales</h2>
+      ${fm.map(m=>`
+        <div class="manche">
+          <div class="label">${m.label} <span class="badge ${m.phase}">${m.phase}</span></div>
+          <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':'À venir'}</div>
+          <div class="players">${m.players.map(pid=>playerName(pid)).join(' · ')}</div>
+        </div>`).join('')}
+    </div>`;
+  }
+  return html;
+}
+
+// ---------- Vue Réglages (admin) ----------
+function viewReglages(){
+  const cfg = data.config || { pin:'', groupSize:4, tours:3, postes:2, pointsTable:[5,3,2,1], qualifiedOr:20 };
+  return `<div class="card">
+    <h2>Configuration du tournoi</h2>
+    <label>Code admin (PIN)</label>
+    <input type="text" id="cfgPin" value="${cfg.pin||''}" placeholder="ex : 2024">
+    <div class="row">
+      <div><label>Joueurs par groupe</label><input type="number" id="cfgGroupSize" value="${cfg.groupSize}" min="2" max="8"></div>
+      <div><label>Postes (Switch) simultanés</label><input type="number" id="cfgPostes" value="${cfg.postes}" min="1" max="6"></div>
+    </div>
+    <label>Tours de qualification (courses par joueur)</label>
+    <input type="number" id="cfgTours" value="${cfg.tours}" min="1" max="10">
+    <label>Barème de points (1er, 2e, 3e, 4e…) séparés par virgules</label>
+    <input type="text" id="cfgPoints" value="${cfg.pointsTable.join(',')}">
+    <label>Nombre de qualifiés en Tableau Or</label>
+    <input type="number" id="cfgOr" value="${cfg.qualifiedOr}" min="1">
+    <button class="primary" id="saveCfgBtn">Enregistrer la configuration</button>
+  </div>
+
+  <div class="card">
+    <h2>Joueurs (<span id="playersCountSpan">${data.players.length}</span>)</h2>
+    <div class="row">
+      <input type="text" id="newPlayerName" placeholder="Prénom du joueur">
+      <button class="secondary" id="addPlayerBtn" style="margin-top:0;">Ajouter</button>
+    </div>
+    <label>Ajout rapide (un prénom par ligne)</label>
+    <textarea id="bulkPlayers" rows="4" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:10px; font-size:13px;" placeholder="Lucas&#10;Emma&#10;Nolan…"></textarea>
+    <button class="secondary" id="bulkAddBtn">Ajouter la liste</button>
+    <div id="playersChipsWrap" style="margin-top:12px;">
+      ${playersChipsHtml()}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Sauvegarde manuelle (secours)</h2>
+    <p style="font-size:12px; color:var(--text-dim); margin-bottom:8px;">Si la synchronisation automatique ne fonctionne pas (voir le point de couleur en haut), copie les données ici et colle-les sur l'autre appareil.</p>
+    <button class="secondary" id="exportBtn">Copier les données</button>
+    <button class="secondary" id="importBtn" style="margin-left:8px;">Coller des données</button>
+  </div>
+
+  <div class="card">
+    <h2>Générer les manches de qualification</h2>
+    <p style="font-size:12.5px; color:var(--text-dim); margin-bottom:8px;">
+      Recrée automatiquement le planning de courses en mélangeant les adversaires à chaque tour.
+      ${data.manches.filter(m=>m.phase==='qualif').length ? 'Attention : régénérer effacera les manches et scores actuels.' : ''}
+    </p>
+    <button class="primary" id="genBtn" ${!data.config || data.players.length < 2 ? 'disabled' : ''}>Générer / régénérer les manches</button>
+  </div>`;
+}
+
+// ---------- Vue Scores (admin) ----------
+function viewScores(){
+  if(!data.manches.length) return `<div class="card"><div class="empty">Aucune manche à noter. Génère-les d'abord dans Réglages.</div></div>`;
+  const qualif = data.manches.filter(m=>m.phase==='qualif');
+  const finales = data.manches.filter(m=>m.phase!=='qualif');
+  return `<div class="card">
+    <h2>Saisie des scores — Qualifications</h2>
+    ${qualif.map(m=>renderMancheEditor(m)).join('')}
+  </div>
+  <div class="card">
+    <h2>Manches finales</h2>
+    ${finales.map(m=>renderMancheEditor(m)).join('') || '<p style="font-size:12.5px; color:var(--text-dim);">Aucune manche finale créée.</p>'}
+    ${qualifsComplete() ? renderNewFinaleForm() : '<p style="font-size:12px; color:var(--text-dim); margin-top:10px;">Termine les qualifications pour créer les manches finales.</p>'}
+  </div>`;
+}
+
+function renderMancheEditor(m){
+  const positions = Array.from({length:m.players.length}, (_,i)=>i+1);
+  return `<div class="manche">
+    <div class="label">${m.label} ${m.isFinale ? '<span class="badge or">Finale</span>' : ''}</div>
+    ${m.players.map(pid=>`
+      <div class="posrow">
+        <span>${playerName(pid)}</span>
+        <select data-manche="${m.id}" data-player="${pid}" class="posSelect">
+          <option value="">—</option>
+          ${positions.map(p=>`<option value="${p}" ${m.results[pid]===p?'selected':''}>${p}${p===1?'er':'e'}</option>`).join('')}
+        </select>
+      </div>`).join('')}
+    <button class="secondary saveMancheBtn" data-manche="${m.id}">Enregistrer les résultats</button>
+    <button class="danger delMancheBtn" data-manche="${m.id}" style="margin-left:8px;">Supprimer</button>
+  </div>`;
+}
+
+function renderNewFinaleForm(){
+  const ranked = classementGeneral();
+  return `<div class="manche" style="border-style:dashed;">
+    <div class="label">Créer une manche finale</div>
+    <label>Nom de la manche</label>
+    <input type="text" id="finaleLabel" placeholder="ex : Or — Finale">
+    <label>Phase</label>
+    <select id="finalePhase"><option value="or">Tableau Or</option><option value="argent">Tableau Argent</option></select>
+    <label><input type="checkbox" id="finaleIsPodium" style="width:auto; display:inline-block;"> Marquer comme manche décisive (affiche le podium)</label>
+    <label>Joueurs concernés</label>
+    <div class="checklist">
+      ${ranked.map(r=>`<div class="checkitem"><input type="checkbox" class="finalePlayer" value="${r.id}" style="width:auto;"> ${r.name} <span style="color:var(--text-dim); font-size:11px;">(${r.pts}pts)</span></div>`).join('')}
+    </div>
+    <button class="primary" id="createFinaleBtn">Créer la manche</button>
+  </div>`;
+}
+
+// ---------- Handlers ----------
+function attachHandlers(){
+  const search = document.getElementById('searchInput');
+  if(search) search.oninput = (e)=>{ searchName = e.target.value; renderContent(); };
+
+  const saveCfg = document.getElementById('saveCfgBtn');
+  if(saveCfg) saveCfg.onclick = async ()=>{
+    const pin = document.getElementById('cfgPin').value.trim();
+    if(!pin){ alert('Merci de définir un code admin.'); return; }
+    data.config = {
+      pin,
+      groupSize: parseInt(document.getElementById('cfgGroupSize').value)||4,
+      tours: parseInt(document.getElementById('cfgTours').value)||3,
+      postes: parseInt(document.getElementById('cfgPostes').value)||2,
+      pointsTable: document.getElementById('cfgPoints').value.split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x)),
+      qualifiedOr: parseInt(document.getElementById('cfgOr').value)||20
+    };
+    await saveData();
+    render();
+  };
+
+  const addP = document.getElementById('addPlayerBtn');
+  if(addP) addP.onclick = async ()=>{
+    const inp = document.getElementById('newPlayerName');
+    const name = inp.value.trim();
+    if(!name) return;
+    data.players.push({ id: 'j'+Date.now()+Math.floor(Math.random()*1000), name });
+    inp.value='';
+    await saveData();
+    refreshPlayersUI();
+  };
+
+  const bulkAdd = document.getElementById('bulkAddBtn');
+  if(bulkAdd) bulkAdd.onclick = async ()=>{
+    const ta = document.getElementById('bulkPlayers');
+    const names = ta.value.split('\n').map(n=>n.trim()).filter(Boolean);
+    names.forEach(name=>data.players.push({ id:'j'+Date.now()+Math.floor(Math.random()*10000), name }));
+    ta.value='';
+    await saveData();
+    refreshPlayersUI();
+  };
+
+  refreshPlayersUI();
+
+  const exportBtn = document.getElementById('exportBtn');
+  if(exportBtn) exportBtn.onclick = async ()=>{
+    const text = JSON.stringify(data);
+    try{
+      await navigator.clipboard.writeText(text);
+      alert('Données copiées ! Colle-les sur l\'autre appareil via "Coller des données".');
+    }catch(e){
+      prompt('Copie ce texte manuellement :', text);
+    }
+  };
+  const importBtn = document.getElementById('importBtn');
+  if(importBtn) importBtn.onclick = async ()=>{
+    const text = prompt('Colle ici les données copiées depuis l\'autre appareil :');
+    if(!text) return;
+    try{
+      const parsed = JSON.parse(text);
+      data = parsed;
+      await saveData();
+      render();
+      alert('Données importées !');
+    }catch(e){
+      alert('Le texte collé n\'est pas valide.');
+    }
+  };
+
+  const genBtn = document.getElementById('genBtn');
+  if(genBtn) genBtn.onclick = async ()=>{
+    if(data.manches.some(m=>m.phase==='qualif') && !confirm('Régénérer effacera les manches et scores actuels. Continuer ?')) return;
+    const finales = data.manches.filter(m=>m.phase!=='qualif');
+    data.manches = [...generateSchedule(), ...finales];
+    data.status = 'qualif';
+    await saveData();
+    alert('Manches générées !');
+    render();
+  };
+
+  document.querySelectorAll('.saveMancheBtn').forEach(b=>b.onclick = async ()=>{
+    const mid = b.dataset.manche;
+    const m = data.manches.find(x=>x.id===mid);
+    const selects = document.querySelectorAll(`.posSelect[data-manche="${mid}"]`);
+    const used = new Set();
+    let valid = true;
+    selects.forEach(s=>{ if(s.value && used.has(s.value)) valid=false; used.add(s.value); });
+    if(!valid){ alert('Deux joueurs ne peuvent pas avoir la même position.'); return; }
+    selects.forEach(s=>{
+      if(s.value) m.results[s.dataset.player] = parseInt(s.value);
+      else delete m.results[s.dataset.player];
+    });
+    await saveData();
+    renderContent();
+  });
+
+  document.querySelectorAll('.delMancheBtn').forEach(b=>b.onclick = async ()=>{
+    if(!confirm('Supprimer cette manche ?')) return;
+    data.manches = data.manches.filter(m=>m.id!==b.dataset.manche);
+    await saveData();
+    renderContent();
+  });
+
+  const createFinale = document.getElementById('createFinaleBtn');
+  if(createFinale) createFinale.onclick = async ()=>{
+    const label = document.getElementById('finaleLabel').value.trim();
+    const phase = document.getElementById('finalePhase').value;
+    const isFinale = document.getElementById('finaleIsPodium').checked;
+    const players = Array.from(document.querySelectorAll('.finalePlayer:checked')).map(c=>c.value);
+    if(!label || players.length<2){ alert('Ajoute un nom et au moins 2 joueurs.'); return; }
+    data.manches.push({ id:'f'+Date.now(), phase, isFinale, label, players, results:{} });
+    await saveData();
+    renderContent();
+  };
+}
+
+// ---------- PIN Modal ----------
+function openPinModal(){
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-bg" id="modalBg">
+      <div class="modal">
+        <h2 style="margin-bottom:10px;">Accès admin</h2>
+        <input type="password" id="pinInput" placeholder="Code admin">
+        <button class="primary" id="pinSubmit" style="width:100%;">Déverrouiller</button>
+        <button class="secondary" id="pinCancel" style="width:100%; text-align:center;">Annuler</button>
+      </div>
+    </div>`;
+  document.getElementById('pinCancel').onclick = ()=> document.getElementById('modalRoot').innerHTML='';
+  document.getElementById('modalBg').onclick = (e)=>{ if(e.target.id==='modalBg') document.getElementById('modalRoot').innerHTML=''; };
+  document.getElementById('pinSubmit').onclick = ()=>{
+    const val = document.getElementById('pinInput').value;
+    if(!data.config){
+      // premier réglage : pas encore de PIN défini, on ouvre direct les réglages
+      unlocked = true;
+    } else if(val === data.config.pin){
+      unlocked = true;
+    } else {
+      alert('Code incorrect.');
+      return;
+    }
+    document.getElementById('modalRoot').innerHTML='';
+    currentTab = 'reglages';
+    updateLockBtn();
+    render();
+  };
+}
+function updateLockBtn(){
+  const b = document.getElementById('lockBtn');
+  b.textContent = unlocked ? '🔓 Admin' : '🔒 Admin';
+  b.classList.toggle('unlocked', unlocked);
+}
+
+document.getElementById('lockBtn').onclick = ()=>{
+  if(unlocked){
+    unlocked = false;
+    currentTab = 'classement';
+    updateLockBtn();
+    render();
+  } else {
+    openPinModal();
+  }
+};
+
+// ---------- Init & polling ----------
+async function init(){
+  await loadData();
+  render();
+  updateSyncIndicator();
+  setInterval(async ()=>{
+    if(!unlocked){ // ne pas perturber la saisie admin
+      await loadData();
+      render();
+    }
+  }, 8000);
+}
+init();
+</script>
+</body>
+</html>
