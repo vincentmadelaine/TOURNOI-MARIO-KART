@@ -24,7 +24,7 @@
   body{
     background:var(--bg); color:var(--text);
     font-family:-apple-system, 'Segoe UI', Roboto, sans-serif;
-    min-height:100vh; padding-bottom:70px;
+    min-height:100vh; padding-bottom:calc(64px + env(safe-area-inset-bottom));
   }
   header{
     padding:16px 16px 14px; position:relative; overflow:hidden;
@@ -51,13 +51,16 @@
   .lockbtn.unlocked{color:var(--green); border-color:var(--green);}
 
   nav{
-    display:flex; gap:6px; padding:10px 14px; overflow-x:auto;
-    border-bottom:1px solid var(--line);
+    display:flex; gap:6px; padding:9px 10px calc(9px + env(safe-area-inset-bottom));
+    overflow-x:auto; justify-content:center;
+    position:fixed; left:0; right:0; bottom:0; z-index:35;
+    background:var(--bg-alt); border-top:1px solid var(--line); border-bottom:none;
+    box-shadow:0 -4px 16px #0004;
   }
   nav button{
     flex:0 0 auto; background:none; border:1px solid var(--line); color:var(--text-dim);
-    font-size:12px; text-transform:uppercase; letter-spacing:.4px; font-weight:700;
-    padding:9px 13px; border-radius:8px; cursor:pointer; white-space:nowrap;
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.4px; font-weight:700;
+    padding:10px 12px; border-radius:9px; cursor:pointer; white-space:nowrap;
   }
   nav button.active{background:var(--yellow); color:#14161c; border-color:var(--yellow);}
 
@@ -108,6 +111,7 @@
   .manche .status{font-size:11px; color:var(--text-dim); margin-top:2px;}
   .manche .status.done{color:var(--green);}
   .manche .players{margin-top:8px; font-size:13px;}
+  .players-grid{ display:flex; flex-wrap:wrap; gap:8px 14px; }
   .posrow{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-top:1px solid var(--line);}
   .posrow:first-of-type{border-top:none;}
   .posrow select{width:90px;}
@@ -143,6 +147,7 @@
   .podium{display:flex; gap:10px; margin-top:10px;}
   .podium .place{flex:1; text-align:center; background:var(--bg); border-radius:10px; padding:14px 6px; border:1px solid var(--line);}
   .podium .place.p1{border-color:var(--gold);}
+  .podium .place.followed{ outline:2px solid var(--yellow); outline-offset:2px; }
   .checklist{max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px; margin-top:6px;}
   .checkitem{display:flex; align-items:center; gap:8px; padding:5px 2px; font-size:13px;}
   small.hint{display:block; color:var(--text-dim); font-size:11.5px; margin-top:4px;}
@@ -246,6 +251,11 @@
   .chip-emoji{ font-size:14px; cursor:pointer; }
   .player-link{ cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
   .player-link.no-results{ opacity:.5; text-decoration:none; }
+  .avatar-row{ display:inline-flex; align-items:center; gap:7px; vertical-align:middle; }
+  .avatar-badge{
+    display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
+    border-radius:50%; background:var(--bg); border:1px solid var(--line);
+  }
 </style>
 </head>
 <body>
@@ -283,7 +293,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJwfhbE01SilfQ
 
 let data = { config:null, players:[], manches:[], status:'setup' };
 let unlocked = false;
-let currentTab = 'classement';
+let currentTab = 'planning';
 let searchName = '';
 let searchClassement = '';
 let searchScores = '';
@@ -392,6 +402,12 @@ function uid(p){ return 'j'+p; }
 function playerName(id){ const p = data.players.find(x=>x.id===id); return p ? p.name : '?'; }
 function playerEmoji(id){ const p = data.players.find(x=>x.id===id); return p && p.emoji ? p.emoji+' ' : ''; }
 function playerHasResults(id){ return data.manches.some(m=>m.phase==='qualif' && m.results[id]!==undefined); }
+function playerAvatarRow(id, size){
+  const p = data.players.find(x=>x.id===id);
+  const emoji = (p && p.emoji) ? p.emoji : '🎮';
+  const sz = size || 26;
+  return `<span class="avatar-row"><span class="avatar-badge" style="width:${sz}px; height:${sz}px; font-size:${Math.round(sz*0.58)}px;">${emoji}</span>${playerName(id)}</span>`;
+}
 function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function pairKey(a,b){ return [a,b].sort().join('|'); }
 
@@ -684,7 +700,7 @@ function bilanPlayerHtml(){
   let html = '';
   if(matches.length && (!selectedBilanPlayerId || matches.length>1)){
     html += `<div class="checklist" style="margin-top:8px;">
-      ${matches.map(p=>`<div class="checkitem" style="cursor:pointer;" data-pick-player="${p.id}">${p.emoji?p.emoji+' ':''}${p.name}</div>`).join('')}
+      ${matches.map(p=>`<div class="checkitem" style="cursor:pointer;" data-pick-player="${p.id}">${playerAvatarRow(p.id,20)}</div>`).join('')}
     </div>`;
   }
   if(selectedBilanPlayerId){
@@ -695,7 +711,7 @@ function bilanPlayerHtml(){
       const total = rows.find(r=>r.id===p.id)?.pts || 0;
       const qualifManches = data.manches.filter(m=>m.phase==='qualif' && m.results[p.id]!==undefined);
       html += `<div class="manche" style="margin-top:12px;">
-        <div class="label">${p.emoji?p.emoji+' ':''}${p.name}</div>
+        <div class="label">${playerAvatarRow(p.id,28)}</div>
         ${qualifManches.length
           ? `<div class="players">Rang qualifs : ${rank>0?rank:'—'} · ${total} pts · ${qualifManches.length} course(s) jouée(s)</div>
              ${qualifManches.map(m=>`<div class="historyItem">${m.label} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('')}`
@@ -770,7 +786,7 @@ function viewBilan(){
   if(tournamentFinished()){
     html += `<div class="card">
       <h2>Fiche joueur</h2>
-      ${followedPlayerId ? `<button class="secondary" id="myResultsBtn" style="width:100%; margin-top:0;">👁️ Voir les résultats de ${playerEmoji(followedPlayerId)}${playerName(followedPlayerId)}</button>` : ''}
+      ${followedPlayerId ? `<button class="secondary" id="myResultsBtn" style="width:100%; margin-top:0;">👁️ Voir les résultats de ${playerAvatarRow(followedPlayerId,20)}</button>` : ''}
       <div class="search-wrap" style="margin-top:${followedPlayerId?'10px':'0'};">
         <input class="searchbox" type="text" id="searchBilanInput" placeholder="Rechercher un joueur…" value="${searchBilan}">
         <button class="search-clear" type="button">✕</button>
@@ -790,7 +806,7 @@ function render(){
   renderContent();
 }
 function renderTabs(){
-  const tabs = [['classement','Classement'],['planning','Planning']];
+  const tabs = [['planning','Planning'],['classement','Classement']];
   if(unlocked || qualifsComplete()) tabs.push(['finales','Finales']);
   tabs.push(['bilan','Bilan']);
   if(unlocked) tabs.push(['reglages','Réglages'], ['scores','Scores']);
@@ -818,17 +834,40 @@ function renderContent(){
 }
 
 // ---------- Vue Classement ----------
+function classementPodiumHtml(rows){
+  const top3 = rows.slice(0,3);
+  const medals = ['🥇','🥈','🥉'];
+  return `<div class="podium" style="margin-bottom:16px;">
+    ${top3.map((r,i)=>{
+      const p = data.players.find(x=>x.id===r.id);
+      const emoji = (p && p.emoji) ? p.emoji : '🎮';
+      const isFollowed = r.id===followedPlayerId;
+      return `<span class="player-link ${playerHasResults(r.id)?'':'no-results'}" data-stats-player="${r.id}" style="flex:1; text-decoration:none;">
+        <div class="place p${i+1} ${isFollowed?'followed':''}">
+          <div style="font-size:22px;">${medals[i]}</div>
+          <div class="avatar-badge" style="width:40px; height:40px; font-size:22px; margin:6px auto;">${emoji}</div>
+          <div style="font-weight:800; font-size:12.5px;">${isFollowed?'👁️ ':''}${r.name}</div>
+          <div class="pts" style="font-size:13px; margin-top:2px;">${r.pts} pts</div>
+        </div>
+      </span>`;
+    }).join('')}
+  </div>`;
+}
 function classementRowsHtml(){
   const rows = classementGeneral();
-  const filtered = searchClassement.trim()
+  const searching = searchClassement.trim().length > 0;
+  const filtered = searching
     ? rows.filter(r=>r.name.toLowerCase().includes(searchClassement.toLowerCase()))
-    : rows;
-  if(filtered.length===0) return `<div class="empty">Aucun résultat pour ce joueur.</div>`;
-  return `<table><thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead><tbody>
+    : rows.slice(3);
+  const podium = (!searching && rows.length) ? classementPodiumHtml(rows) : '';
+  if(filtered.length===0){
+    return podium || `<div class="empty">Aucun résultat pour ce joueur.</div>`;
+  }
+  return podium + `<table><thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead><tbody>
     ${filtered.map(r=>{
       const rank = rows.findIndex(x=>x.id===r.id);
       const isFollowed = r.id===followedPlayerId;
-      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link ${playerHasResults(r.id)?'':'no-results'}" data-stats-player="${r.id}">${isFollowed?'👁️ ':''}${playerEmoji(r.id)}${r.name}</span></td><td class="pts">${r.pts}</td></tr>`;
+      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link ${playerHasResults(r.id)?'':'no-results'}" data-stats-player="${r.id}">${isFollowed?'👁️ ':''}${playerAvatarRow(r.id)}</span></td><td class="pts">${r.pts}</td></tr>`;
     }).join('')}
     </tbody></table>`;
 }
@@ -853,23 +892,21 @@ function mancheCardHtml(m, extraClass){
   const hasFollowed = m.players.includes(followedPlayerId);
   return `<div class="manche ${m.live?'live':''} ${hasFollowed?'followed':''} ${extraClass||''}">
         ${m.live ? '<div class="label"><span class="live-badge"><span class="live-dot"></span>En direct</span></div>' : ''}
-        <div class="players">${m.players.map(pid=>{
-          const inner = `${playerEmoji(pid)}${playerName(pid)}`;
-          const wrapped = `<span class="player-link ${playerHasResults(pid)?'':'no-results'}" data-stats-player="${pid}">${inner}</span>`;
+        <div class="players players-grid">${m.players.map(pid=>{
+          const wrapped = `<span class="player-link ${playerHasResults(pid)?'':'no-results'}" data-stats-player="${pid}">${playerAvatarRow(pid)}</span>`;
           return pid===followedPlayerId ? `<span class="followed-name">👁️ ${wrapped}</span>` : wrapped;
-        }).join(' · ')}</div>
+        }).join('')}</div>
       </div>`;
 }
 function mancheResultCardHtml(m){
   const hasFollowed = m.players.includes(followedPlayerId);
   const ranked = Object.entries(m.results).sort((a,b)=>a[1]-b[1]);
   return `<div class="manche ${hasFollowed?'followed':''}">
-        <div class="players">
+        <div class="players players-grid">
           ${ranked.map(([pid,pos])=>{
-            const inner = `${pos}${pos===1?'er':'e'} ${playerEmoji(pid)}${playerName(pid)}`;
-            const wrapped = `<span class="player-link" data-stats-player="${pid}">${inner}</span>`;
+            const wrapped = `<span class="player-link" data-stats-player="${pid}">${pos}${pos===1?'er':'e'} ${playerAvatarRow(pid)}</span>`;
             return pid===followedPlayerId ? `<span class="followed-name">👁️ ${wrapped}</span>` : wrapped;
-          }).join(' · ')}
+          }).join('')}
         </div>
       </div>`;
 }
@@ -904,10 +941,46 @@ function planningResultsHtml(){
     + renderArchived(completedList);
   return html || `<div class="empty">Aucun résultat pour ce joueur.</div>`;
 }
+function tournamentProgressHtml(){
+  const qm = data.manches.filter(m=>m.phase==='qualif');
+  const total = qm.length;
+  const done = qm.filter(mancheComplete).length;
+  if(!total) return '';
+  const pct = Math.round((done/total)*100);
+  return `<div class="card" style="padding:14px 16px;">
+    <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-dim); margin-bottom:7px; font-weight:800; text-transform:uppercase; letter-spacing:.4px;">
+      <span>Progression du tournoi</span><span>${done}/${total} courses</span>
+    </div>
+    <div style="height:10px; background:var(--line); border-radius:20px; overflow:hidden;">
+      <div style="height:100%; width:${pct}%; background:linear-gradient(90deg, var(--yellow), var(--red)); border-radius:20px;"></div>
+    </div>
+  </div>`;
+}
+function myTurnBannerHtml(){
+  if(!followedPlayerId) return '';
+  const qm = data.manches.filter(m=>m.phase==='qualif');
+  const isLiveNow = qm.some(m=>m.live && m.players.includes(followedPlayerId));
+  if(isLiveNow){
+    return `<div class="card" style="border:2px solid var(--red); background:linear-gradient(135deg, rgba(232,72,60,.18), transparent);">
+      <div style="font-weight:800; font-size:15px;">🔴 C'est parti, c'est ton tour !</div>
+      <div style="font-size:12.5px; color:var(--text-dim); margin-top:4px;">${playerAvatarRow(followedPlayerId,22)} joue en ce moment.</div>
+    </div>`;
+  }
+  const pendingNotLive = qm.filter(m=>!m.live && !mancheComplete(m));
+  const upcoming = pendingNotLive.slice(0,2);
+  const isUpcoming = upcoming.some(m=>m.players.includes(followedPlayerId));
+  if(isUpcoming){
+    return `<div class="card" style="border:2px solid var(--yellow); background:linear-gradient(135deg, rgba(255,201,60,.15), transparent);">
+      <div style="font-weight:800; font-size:15px;">🔔 Bientôt ton tour !</div>
+      <div style="font-size:12.5px; color:var(--text-dim); margin-top:4px;">${playerAvatarRow(followedPlayerId,22)} passe très bientôt — reste à côté de l'écran.</div>
+    </div>`;
+  }
+  return '';
+}
 function viewPlanning(){
   const qm = data.manches.filter(m=>m.phase==='qualif');
   if(qm.length===0) return `<div class="card"><div class="empty">Aucune manche générée pour le moment.</div></div>`;
-  return `<div class="card">
+  return tournamentProgressHtml() + myTurnBannerHtml() + `<div class="card">
     <div class="search-wrap">
       <input class="searchbox" type="text" id="searchInput" placeholder="Rechercher un joueur…" value="${searchName}">
       <button class="search-clear" type="button">✕</button>
@@ -1081,7 +1154,7 @@ function renderMancheEditor(m){
     <div class="label">${m.label} ${m.isFinale ? '<span class="badge or">Finale</span>' : ''} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
     ${m.players.map(pid=>`
       <div class="posrow posrow-vert ${pid===followedPlayerId?'followed':''}">
-        <span>${pid===followedPlayerId?'👁️ ':''}${playerEmoji(pid)}${playerName(pid)}</span>
+        <span>${pid===followedPlayerId?'👁️ ':''}${playerAvatarRow(pid,22)}</span>
         <div class="posBtnGroup" data-manche="${m.id}" data-player="${pid}">
           ${positions.map(p=>`<button type="button" class="posBtn ${m.results[pid]===p?'active':''}" data-pos="${p}">${p}${p===1?'er':'e'}</button>`).join('')}
         </div>
@@ -1325,7 +1398,7 @@ function attachHandlers(){
     unlocked = false;
     followedPlayerId = null;
     try{ localStorage.removeItem('followedPlayerId'); }catch(e){}
-    currentTab = 'classement';
+    currentTab = 'planning';
     await saveData();
     updateLockBtn();
     render();
@@ -1537,7 +1610,7 @@ function updateLockBtn(){
 document.getElementById('lockBtn').onclick = ()=>{
   if(unlocked){
     unlocked = false;
-    currentTab = 'classement';
+    currentTab = 'planning';
     updateLockBtn();
     render();
   } else {
@@ -1631,7 +1704,7 @@ function showPlayerStatsModal(playerId){
     document.getElementById('modalRoot').innerHTML = `
       <div class="modal-bg" id="statsModalBg">
         <div class="modal" style="text-align:center;">
-          <h2 style="margin-bottom:10px;">${p.emoji?p.emoji+' ':''}${p.name}</h2>
+          <h2 style="margin-bottom:10px;">${playerAvatarRow(p.id,30)}</h2>
           <p style="font-size:13px; color:var(--text-dim);">Ce joueur n'a pas encore de résultat enregistré.<br>Reviens une fois qu'il aura joué au moins une course.</p>
           <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:16px;">Fermer</button>
         </div>
@@ -1651,7 +1724,7 @@ function showPlayerStatsModal(playerId){
   document.getElementById('modalRoot').innerHTML = `
     <div class="modal-bg" id="statsModalBg">
       <div class="modal" style="max-width:400px;">
-        <h2 style="margin-bottom:12px;">${p.emoji?p.emoji+' ':''}${p.name}</h2>
+        <h2 style="margin-bottom:12px;">${playerAvatarRow(p.id,30)}</h2>
         <table><tbody>
           <tr><td>Rang qualifs</td><td class="pts" style="text-align:right;">${rank>0?rank:'—'} / ${rows.length}</td></tr>
           <tr><td>Points totaux</td><td class="pts" style="text-align:right;">${total}</td></tr>
@@ -1708,7 +1781,7 @@ document.getElementById('followBtn').onclick = ()=>{
   const renderFollowList = (q)=>{
     const list = document.getElementById('followList');
     const matches = q.trim() ? data.players.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())) : data.players;
-    list.innerHTML = matches.map(p=>`<div class="checkitem" style="cursor:pointer; ${p.id===followedPlayerId?'color:var(--yellow); font-weight:800;':''}" data-follow-pick="${p.id}">${p.id===followedPlayerId?'👁️ ':''}${p.emoji?p.emoji+' ':''}${p.name}</div>`).join('') || '<div class="empty">Aucun joueur.</div>';
+    list.innerHTML = matches.map(p=>`<div class="checkitem" style="cursor:pointer; ${p.id===followedPlayerId?'color:var(--yellow); font-weight:800;':''}" data-follow-pick="${p.id}">${p.id===followedPlayerId?'👁️ ':''}${playerAvatarRow(p.id,20)}</div>`).join('') || '<div class="empty">Aucun joueur.</div>';
     list.querySelectorAll('[data-follow-pick]').forEach(el=>el.onclick=()=>{
       setFollowed(el.dataset.followPick);
       resetLiveBaseline();
@@ -1801,7 +1874,7 @@ function exitProjectionAndLock(){
   if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
   clearInterval(projectionTickInterval);
   unlocked = false;
-  currentTab = 'classement';
+  currentTab = 'planning';
   updateLockBtn();
   render();
 }
@@ -1811,7 +1884,7 @@ document.getElementById('projectionBtn').onclick = ()=>{
     document.body.classList.add('projection');
     document.getElementById('projectionBtn').textContent = '✕';
     document.documentElement.requestFullscreen?.().catch(()=>{});
-    currentTab = 'classement';
+    currentTab = 'planning';
     render();
     startProjectionTicker();
     return;
@@ -1825,6 +1898,42 @@ document.addEventListener('fullscreenchange', ()=>{
 });
 
 // ---------- Init & polling ----------
+const TUTO_STEPS = [
+  { emoji:'🏆', title:'Le classement', text:"Le podium et le classement général sont mis à jour en direct, au fur et à mesure des courses." },
+  { emoji:'👁️', title:'Suis un joueur', text:"Choisis un joueur à suivre (toi ou un pote) — son nom ressort partout dans l'appli, et tu es prévenu quand c'est son tour." },
+  { emoji:'🔴', title:'Qui joue maintenant', text:"L'onglet Planning montre en direct qui court en ce moment, et qui passe juste après." }
+];
+function showTutorialStep(i){
+  const step = TUTO_STEPS[i];
+  const isLast = i === TUTO_STEPS.length-1;
+  const finish = ()=>{
+    try{ localStorage.setItem('tournoi-tuto-seen','1'); }catch(e){}
+    document.getElementById('modalRoot').innerHTML='';
+  };
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-bg" id="tutoModalBg">
+      <div class="modal" style="text-align:center;">
+        <div style="font-size:44px; margin-bottom:10px;">${step.emoji}</div>
+        <h2 style="margin-bottom:8px;">${step.title}</h2>
+        <p style="font-size:13.5px; color:var(--text-dim); margin-bottom:16px;">${step.text}</p>
+        <div style="display:flex; gap:6px; justify-content:center; margin-bottom:16px;">
+          ${TUTO_STEPS.map((_,idx)=>`<span style="width:7px; height:7px; border-radius:50%; background:${idx===i?'var(--yellow)':'var(--line)'};"></span>`).join('')}
+        </div>
+        <button class="primary" id="tutoNextBtn" style="width:100%;">${isLast ? "C'est parti !" : 'Suivant'}</button>
+        ${!isLast ? '<button class="secondary" id="tutoSkipBtn" style="width:100%; margin-top:8px;">Passer</button>' : ''}
+      </div>
+    </div>`;
+  document.getElementById('tutoNextBtn').onclick = ()=>{ isLast ? finish() : showTutorialStep(i+1); };
+  const skipBtn = document.getElementById('tutoSkipBtn');
+  if(skipBtn) skipBtn.onclick = finish;
+  document.getElementById('tutoModalBg').onclick = (e)=>{ if(e.target.id==='tutoModalBg') finish(); };
+}
+function maybeShowTutorial(){
+  let seen = false;
+  try{ seen = localStorage.getItem('tournoi-tuto-seen')==='1'; }catch(e){}
+  if(!seen) showTutorialStep(0);
+}
+
 async function init(){
   await loadData();
   if(syncStatus==='error'){
@@ -1841,6 +1950,7 @@ async function init(){
   render();
   updateSyncIndicator();
   updateFollowBtn();
+  if(!joueurParam) maybeShowTutorial();
   async function pollTick(){
     if(!unlocked && !document.hidden){
       if(hasPendingLocalChanges){
