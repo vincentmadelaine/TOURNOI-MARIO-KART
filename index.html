@@ -52,7 +52,7 @@
 
   nav{
     display:flex; gap:6px; padding:9px 10px calc(9px + env(safe-area-inset-bottom));
-    overflow-x:auto; justify-content:center;
+    overflow-x:auto; justify-content:flex-start;
     position:fixed; left:0; right:0; bottom:0; z-index:35;
     background:var(--bg-alt); border-top:1px solid var(--line); border-bottom:none;
     box-shadow:0 -4px 16px #0004;
@@ -116,13 +116,15 @@
   .posrow:first-of-type{border-top:none;}
   .posrow select{width:90px;}
   .posrow-vert{ gap:8px; }
-  .posrow-vert span:first-child{ flex:0 0 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:38%; }
+  .posrow-vert > span:first-child{ flex:1 1 auto; min-width:0; overflow:hidden; }
   .posBtnGroup{ display:flex; gap:4px; flex:0 0 auto; }
   .posBtn{
     width:34px; height:34px; padding:0; border-radius:7px; border:1px solid var(--line); background:var(--bg);
     color:var(--text); font-weight:800; font-size:11px; cursor:pointer;
   }
   .posBtn.active{ background:var(--yellow); color:#14161c; border-color:var(--yellow); }
+  .mancheActionsRow{ display:flex; gap:8px; margin-top:12px; }
+  .mancheActionsRow button{ flex:1; padding:10px 0; font-size:18px; margin-top:0; }
 
   .print-only{ display:none; }
   @media print{
@@ -165,15 +167,14 @@
   .historyItem:first-child{ border-top:none; }
   .historyItem b{ color:var(--text); }
 
-  .projection-timerbar{ display:none; height:5px; background:var(--line); }
-  .projection-timerbar .fill{ height:100%; width:0%; background:linear-gradient(90deg, var(--yellow), var(--red)); }
-  .projection-status{
-    display:none; text-align:center; padding:11px; font-size:14px; font-weight:800;
-    letter-spacing:.6px; text-transform:uppercase; color:var(--yellow);
-    background:var(--bg-alt); border-bottom:1px solid var(--line);
+  .projection-tabs{ display:none; gap:12px; padding:14px; justify-content:center; background:var(--bg-alt); border-bottom:1px solid var(--line); }
+  body.projection .projection-tabs{ display:flex; }
+  .proj-tab-btn{
+    flex:0 0 auto; background:none; border:2px solid var(--line); color:var(--text-dim);
+    font-size:18px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+    padding:14px 32px; border-radius:12px; cursor:pointer;
   }
-  body.projection .projection-timerbar,
-  body.projection .projection-status{ display:block; }
+  .proj-tab-btn.active{ background:var(--yellow); color:#14161c; border-color:var(--yellow); }
 
   body.projection main{ max-width:980px; margin:0 auto; padding:30px 24px 50px; }
   body.projection header{ text-align:center; padding-bottom:8px; }
@@ -218,16 +219,27 @@
   .projection-qr-corner img{ display:block; width:100px; height:100px; }
   body.projection .projection-qr-corner{ display:block; }
 
-  .projection-controls{ display:none; position:fixed; top:14px; right:14px; z-index:45; gap:10px; }
-  body.projection .projection-controls{ display:flex; }
-  .projection-controls button{
-    width:56px; height:56px; border-radius:50%; border:2px solid var(--yellow); background:var(--bg-card);
-    color:var(--text); font-size:24px; cursor:pointer; box-shadow:0 6px 20px #0008; display:flex;
-    align-items:center; justify-content:center;
-  }
-  .projection-controls button:active{ transform:scale(.94); }
-
   tr.followed td{ background:rgba(255,201,60,.12); }
+
+  .progress-track{ height:10px; background:var(--line); border-radius:20px; overflow:hidden; }
+  .progress-fill{
+    height:100%; border-radius:20px; background:linear-gradient(90deg, var(--yellow), var(--red));
+    position:relative; overflow:hidden; transition:width .4s ease;
+    animation: progressGlow 2.2s ease-in-out infinite;
+  }
+  .progress-fill::after{
+    content:''; position:absolute; top:0; left:0; height:100%; width:40%;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+    animation: progressShine 2.4s linear infinite;
+  }
+  @keyframes progressShine{
+    0%{ transform:translateX(-120%); }
+    100%{ transform:translateX(280%); }
+  }
+  @keyframes progressGlow{
+    0%,100%{ box-shadow:0 0 6px 0 rgba(255,201,60,.5); }
+    50%{ box-shadow:0 0 16px 3px rgba(255,201,60,.85); }
+  }
   tr.followed td:first-child{ border-left:3px solid var(--yellow); }
   .manche.followed{ outline:2px solid var(--yellow); outline-offset:2px; }
   .followed-name{ color:var(--yellow); font-weight:800; text-shadow:0 0 8px rgba(255,201,60,.55); }
@@ -251,11 +263,12 @@
   .chip-emoji{ font-size:14px; cursor:pointer; }
   .player-link{ cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
   .player-link.no-results{ opacity:.5; text-decoration:none; }
-  .avatar-row{ display:inline-flex; align-items:center; gap:7px; vertical-align:middle; }
+  .avatar-row{ display:inline-flex; align-items:center; gap:7px; vertical-align:middle; min-width:0; max-width:100%; }
   .avatar-badge{
     display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
     border-radius:50%; background:var(--bg); border:1px solid var(--line);
   }
+  .avatar-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1 1 auto; }
 </style>
 </head>
 <body>
@@ -273,13 +286,11 @@
   <h1><span class="fx-red">Tournoi</span> <span>Mario Kart</span></h1>
 </header>
 <div class="stripe"></div>
-<div class="projection-timerbar"><div class="fill" id="projectionTimerFill"></div></div>
-<div class="projection-status" id="projectionStatus"><span id="projectionStatusLabel"></span></div>
-<div class="projection-qr-corner"><img id="projectionQrCornerImg" alt="QR code"></div>
-<div class="projection-controls" id="projectionControls">
-  <button id="projSkipBtn" title="Écran suivant">⏭️</button>
-  <button id="projPauseBtn" title="Pause / Lecture">⏸️</button>
+<div class="projection-tabs" id="projectionTabs">
+  <button id="projTabClassement" class="proj-tab-btn">Classement</button>
+  <button id="projTabPlanning" class="proj-tab-btn">Planning</button>
 </div>
+<div class="projection-qr-corner"><img id="projectionQrCornerImg" alt="QR code"></div>
 
 <nav id="tabs"></nav>
 <main id="content"></main>
@@ -303,8 +314,6 @@ function bindArchiveToggle(elId, onToggle){
   const el = document.getElementById(elId);
   if(el) el.ontoggle = ()=> onToggle(el.open);
 }
-let searchBilan = '';
-let selectedBilanPlayerId = null;
 let followedPlayerId = null;
 try{ followedPlayerId = localStorage.getItem('followedPlayerId') || null; }catch(e){}
 
@@ -406,7 +415,7 @@ function playerAvatarRow(id, size){
   const p = data.players.find(x=>x.id===id);
   const emoji = (p && p.emoji) ? p.emoji : '🎮';
   const sz = size || 26;
-  return `<span class="avatar-row"><span class="avatar-badge" style="width:${sz}px; height:${sz}px; font-size:${Math.round(sz*0.58)}px;">${emoji}</span>${playerName(id)}</span>`;
+  return `<span class="avatar-row"><span class="avatar-badge" style="width:${sz}px; height:${sz}px; font-size:${Math.round(sz*0.58)}px;">${emoji}</span><span class="avatar-name">${playerName(id)}</span></span>`;
 }
 function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function pairKey(a,b){ return [a,b].sort().join('|'); }
@@ -440,7 +449,7 @@ function generateSchedule(){
     const groups = generateRound(ids, data.config.groupSize, used);
     groups.forEach((g,gi)=>{
       manches.push({ id:'q'+(mid++), phase:'qualif', isFinale:false,
-        label:`Tour ${t}`, players:g, results:{} });
+        label:`Course ${t}`, players:g, results:{} });
     });
   }
   return manches;
@@ -677,129 +686,6 @@ function formatDuration(ms){
   const min = totalMin%60;
   return h>0 ? `${h}h${String(min).padStart(2,'0')}` : `${min} min`;
 }
-function computeMostConsistent(){
-  const stats = {};
-  data.players.forEach(p=>stats[p.id]=[]);
-  data.manches.filter(m=>m.phase==='qualif').forEach(m=>{
-    Object.entries(m.results).forEach(([pid,pos])=>{ if(stats[pid]) stats[pid].push(pos); });
-  });
-  let best=null, bestStd=Infinity;
-  Object.entries(stats).forEach(([pid,positions])=>{
-    if(positions.length<2) return;
-    const avg = positions.reduce((a,b)=>a+b,0)/positions.length;
-    const variance = positions.reduce((a,b)=>a+(b-avg)**2,0)/positions.length;
-    const std = Math.sqrt(variance);
-    if(std<bestStd){ bestStd=std; best={pid, std}; }
-  });
-  return best;
-}
-function bilanPlayerHtml(){
-  const matches = searchBilan.trim()
-    ? data.players.filter(p=>p.name.toLowerCase().includes(searchBilan.toLowerCase()))
-    : [];
-  let html = '';
-  if(matches.length && (!selectedBilanPlayerId || matches.length>1)){
-    html += `<div class="checklist" style="margin-top:8px;">
-      ${matches.map(p=>`<div class="checkitem" style="cursor:pointer;" data-pick-player="${p.id}">${playerAvatarRow(p.id,20)}</div>`).join('')}
-    </div>`;
-  }
-  if(selectedBilanPlayerId){
-    const p = data.players.find(x=>x.id===selectedBilanPlayerId);
-    if(p){
-      const rows = classementGeneral();
-      const rank = rows.findIndex(r=>r.id===p.id)+1;
-      const total = rows.find(r=>r.id===p.id)?.pts || 0;
-      const qualifManches = data.manches.filter(m=>m.phase==='qualif' && m.results[p.id]!==undefined);
-      html += `<div class="manche" style="margin-top:12px;">
-        <div class="label">${playerAvatarRow(p.id,28)}</div>
-        ${qualifManches.length
-          ? `<div class="players">Rang qualifs : ${rank>0?rank:'—'} · ${total} pts · ${qualifManches.length} course(s) jouée(s)</div>
-             ${qualifManches.map(m=>`<div class="historyItem">${m.label} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('')}`
-          : `<p style="font-size:12.5px; color:var(--text-dim); margin-top:6px;">Aucun résultat enregistré pour l'instant — revenez une fois que ce joueur aura participé à une course.</p>`}
-        <button class="secondary" id="copyPlayerLinkBtn" data-player-link="${p.id}">🔗 Copier le lien de sa fiche</button>
-      </div>`;
-    }
-  }
-  return html || (searchBilan.trim() ? '<div class="empty">Aucun joueur trouvé.</div>' : '<div class="empty">Recherche un joueur pour voir sa fiche.</div>');
-}
-function wireBilanPlayerPicks(){
-  document.querySelectorAll('[data-pick-player]').forEach(el=>el.onclick = ()=>{
-    selectedBilanPlayerId = el.dataset.pickPlayer;
-    const wrap = document.getElementById('bilanPlayerResult');
-    if(wrap){ wrap.innerHTML = bilanPlayerHtml(); wireBilanPlayerPicks(); }
-  });
-  const copyLinkBtn = document.getElementById('copyPlayerLinkBtn');
-  if(copyLinkBtn) copyLinkBtn.onclick = async ()=>{
-    const url = location.origin + location.pathname + '?joueur=' + encodeURIComponent(copyLinkBtn.dataset.playerLink);
-    try{
-      await navigator.clipboard.writeText(url);
-      alert('Lien copié !');
-    }catch(e){
-      prompt('Copie ce lien :', url);
-    }
-  };
-}
-function viewBilan(){
-  if(!selectedBilanPlayerId && followedPlayerId) selectedBilanPlayerId = followedPlayerId;
-  const totalManches = data.manches.length;
-  const manchesJouees = data.manches.filter(mancheComplete).length;
-  const qualifRanked = classementGeneral();
-  const podium = getPodiumManche();
-  const consistent = computeMostConsistent();
-  const duration = (data.startedAt && data.finishedAt) ? formatDuration(data.finishedAt - data.startedAt) : null;
-
-  let html = `<div class="card">
-    <h2>🏁 Bilan du tournoi</h2>
-    <table><tbody>
-      <tr><td>Courses jouées</td><td class="pts" style="text-align:right;">${manchesJouees} / ${totalManches}</td></tr>
-      ${duration ? `<tr><td>Durée totale</td><td class="pts" style="text-align:right;">${duration}</td></tr>` : ''}
-      <tr><td>Nombre de joueurs</td><td class="pts" style="text-align:right;">${data.players.length}</td></tr>
-      ${consistent ? `<tr><td>Joueur le plus régulier</td><td class="pts" style="text-align:right;">${playerName(consistent.pid)}</td></tr>` : ''}
-    </tbody></table>
-  </div>`;
-
-  html += `<div class="card"><h2>Podium des qualifications</h2>
-    <div class="podium">
-      ${qualifRanked.slice(0,3).map((r,i)=>`
-        <div class="place p${i+1}">
-          <div style="font-size:20px;">${i===0?'🥇':i===1?'🥈':'🥉'}</div>
-          <div style="font-weight:700; font-size:12.5px; margin-top:4px;">${r.name}</div>
-        </div>`).join('')}
-    </div>
-  </div>`;
-
-  if(podium){
-    const ranked = Object.entries(podium.results).sort((a,b)=>a[1]-b[1]);
-    html += `<div class="card"><h2>🏆 Podium final — ${podium.label}</h2>
-      <div class="podium">
-        ${ranked.slice(0,3).map(([pid,pos],i)=>`
-          <div class="place p${i+1}">
-            <div style="font-size:20px;">${i===0?'🥇':i===1?'🥈':'🥉'}</div>
-            <div style="font-weight:700; font-size:12.5px; margin-top:4px;">${playerName(pid)}</div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-  } else {
-    html += `<div class="card"><div class="empty">Le podium final n'est pas encore enregistré.</div></div>`;
-  }
-
-  if(tournamentFinished()){
-    html += `<div class="card">
-      <h2>Fiche joueur</h2>
-      ${followedPlayerId ? `<button class="secondary" id="myResultsBtn" style="width:100%; margin-top:0;">👁️ Voir les résultats de ${playerAvatarRow(followedPlayerId,20)}</button>` : ''}
-      <div class="search-wrap" style="margin-top:${followedPlayerId?'10px':'0'};">
-        <input class="searchbox" type="text" id="searchBilanInput" placeholder="Rechercher un joueur…" value="${searchBilan}">
-        <button class="search-clear" type="button">✕</button>
-      </div>
-      <div id="bilanPlayerResult">${bilanPlayerHtml()}</div>
-    </div>`;
-  } else {
-    html += `<div class="card"><div class="empty">La fiche joueur sera disponible une fois le tournoi terminé (podium final enregistré).</div></div>`;
-  }
-
-  return html;
-}
-
 // ---------- Render root ----------
 function render(){
   renderTabs();
@@ -808,7 +694,6 @@ function render(){
 function renderTabs(){
   const tabs = [['planning','Planning'],['classement','Classement']];
   if(unlocked || qualifsComplete()) tabs.push(['finales','Finales']);
-  tabs.push(['bilan','Bilan']);
   if(unlocked) tabs.push(['reglages','Réglages'], ['scores','Scores']);
   if(!unlocked && currentTab==='finales' && !qualifsComplete()) currentTab = 'classement';
   const nav = document.getElementById('tabs');
@@ -827,7 +712,6 @@ function renderContent(){
   if(currentTab==='classement') el.innerHTML = viewClassement();
   else if(currentTab==='planning') el.innerHTML = viewPlanning();
   else if(currentTab==='finales') el.innerHTML = viewFinales();
-  else if(currentTab==='bilan') el.innerHTML = viewBilan();
   else if(currentTab==='reglages' && unlocked) el.innerHTML = viewReglages();
   else if(currentTab==='scores' && unlocked) el.innerHTML = viewScores();
   attachHandlers();
@@ -842,7 +726,7 @@ function classementPodiumHtml(rows){
       const p = data.players.find(x=>x.id===r.id);
       const emoji = (p && p.emoji) ? p.emoji : '🎮';
       const isFollowed = r.id===followedPlayerId;
-      return `<span class="player-link ${playerHasResults(r.id)?'':'no-results'}" data-stats-player="${r.id}" style="flex:1; text-decoration:none;">
+      return `<span class="player-link ${tournamentFinished()?'':'no-results'}" data-stats-player="${r.id}" style="flex:1; text-decoration:none;">
         <div class="place p${i+1} ${isFollowed?'followed':''}">
           <div style="font-size:22px;">${medals[i]}</div>
           <div class="avatar-badge" style="width:40px; height:40px; font-size:22px; margin:6px auto;">${emoji}</div>
@@ -867,7 +751,7 @@ function classementRowsHtml(){
     ${filtered.map(r=>{
       const rank = rows.findIndex(x=>x.id===r.id);
       const isFollowed = r.id===followedPlayerId;
-      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link ${playerHasResults(r.id)?'':'no-results'}" data-stats-player="${r.id}">${isFollowed?'👁️ ':''}${playerAvatarRow(r.id)}</span></td><td class="pts">${r.pts}</td></tr>`;
+      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link ${tournamentFinished()?'':'no-results'}" data-stats-player="${r.id}">${isFollowed?'👁️ ':''}${playerAvatarRow(r.id)}</span></td><td class="pts">${r.pts}</td></tr>`;
     }).join('')}
     </tbody></table>`;
 }
@@ -893,7 +777,7 @@ function mancheCardHtml(m, extraClass){
   return `<div class="manche ${m.live?'live':''} ${hasFollowed?'followed':''} ${extraClass||''}">
         ${m.live ? '<div class="label"><span class="live-badge"><span class="live-dot"></span>En direct</span></div>' : ''}
         <div class="players players-grid">${m.players.map(pid=>{
-          const wrapped = `<span class="player-link ${playerHasResults(pid)?'':'no-results'}" data-stats-player="${pid}">${playerAvatarRow(pid)}</span>`;
+          const wrapped = `<span class="player-link ${tournamentFinished()?'':'no-results'}" data-stats-player="${pid}">${playerAvatarRow(pid)}</span>`;
           return pid===followedPlayerId ? `<span class="followed-name">👁️ ${wrapped}</span>` : wrapped;
         }).join('')}</div>
       </div>`;
@@ -951,8 +835,8 @@ function tournamentProgressHtml(){
     <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-dim); margin-bottom:7px; font-weight:800; text-transform:uppercase; letter-spacing:.4px;">
       <span>Progression du tournoi</span><span>${done}/${total} courses</span>
     </div>
-    <div style="height:10px; background:var(--line); border-radius:20px; overflow:hidden;">
-      <div style="height:100%; width:${pct}%; background:linear-gradient(90deg, var(--yellow), var(--red)); border-radius:20px;"></div>
+    <div class="progress-track">
+      <div class="progress-fill" style="width:${pct}%;"></div>
     </div>
   </div>`;
 }
@@ -1082,19 +966,19 @@ function viewReglages(){
   </div>
 
   <div class="card">
-    <h2>Sauvegarde manuelle (secours)</h2>
-    <p style="font-size:12px; color:var(--text-dim); margin-bottom:8px;">Si la synchronisation automatique ne fonctionne pas (voir le point de couleur en haut), copie les données ici et colle-les sur l'autre appareil.</p>
-    <button class="secondary" id="exportBtn">Copier les données</button>
-    <button class="secondary" id="importBtn" style="margin-left:8px;">Coller des données</button>
-  </div>
-
-  <div class="card">
     <h2>Générer les manches de qualification</h2>
     <p style="font-size:12.5px; color:var(--text-dim); margin-bottom:8px;">
       Recrée automatiquement le planning de courses en mélangeant les adversaires à chaque tour.
       ${data.manches.filter(m=>m.phase==='qualif').length ? 'Attention : régénérer effacera les manches et scores actuels.' : ''}
     </p>
     <button class="primary" id="genBtn" ${!data.config || data.players.length < 2 ? 'disabled' : ''}>Générer / régénérer les manches</button>
+  </div>
+
+  <div class="card">
+    <h2>Sauvegarde manuelle (secours)</h2>
+    <p style="font-size:12px; color:var(--text-dim); margin-bottom:8px;">Si la synchronisation automatique ne fonctionne pas (voir le point de couleur en haut), copie les données ici et colle-les sur l'autre appareil.</p>
+    <button class="secondary" id="exportBtn">Copier les données</button>
+    <button class="secondary" id="importBtn" style="margin-left:8px;">Coller des données</button>
   </div>
 
   <div class="card" style="border-color:var(--red);">
@@ -1130,15 +1014,18 @@ function viewScores(){
   return `<div class="card">
     <div class="row" style="align-items:center;">
       <div id="scoresElapsedTimer" style="font-size:12.5px; color:var(--text-dim); font-weight:700;">⏱️ …</div>
-      <button type="button" class="secondary" id="timerEditBtn" style="margin-top:0; flex:0 0 auto; padding:6px 10px; font-size:11px;">✏️ Modifier</button>
-      <button type="button" class="secondary" id="timerResetBtn" style="margin-top:0; flex:0 0 auto; padding:6px 10px; font-size:11px;">🔄 Réinitialiser</button>
+      <button type="button" class="secondary" id="timerPlayPauseBtn" title="Pause / Reprendre" style="margin-top:0; flex:0 0 auto; padding:6px 10px; font-size:13px;">⏸️</button>
+      <button type="button" class="secondary" id="timerEditBtn" title="Modifier l'heure de début" style="margin-top:0; flex:0 0 auto; padding:6px 10px; font-size:13px;">✏️</button>
+      <button type="button" class="secondary" id="timerResetBtn" title="Réinitialiser" style="margin-top:0; flex:0 0 auto; padding:6px 10px; font-size:13px;">🔄</button>
     </div>
     <div class="search-wrap">
       <input class="searchbox" type="text" id="searchScoresInput" placeholder="Rechercher un joueur ou un groupe…" value="${searchScores}">
       <button class="search-clear" type="button">✕</button>
     </div>
-    <button class="danger" id="clearAllLiveBtn" style="margin-top:0;">Tout marquer non-live</button>
-    <button class="secondary" id="exportAllManchesBtn" style="margin-top:0; margin-left:8px;">📥 Export complet (CSV)</button>
+    <div class="row" style="margin-top:0;">
+      <button class="danger" id="clearAllLiveBtn" style="margin-top:0;">Tout marquer non-live</button>
+      <button class="secondary" id="exportAllManchesBtn" style="margin-top:0;">📥 Export CSV</button>
+    </div>
   </div>
   <div id="scoresResults">${scoresResultsHtml()}</div>
   <div class="card">
@@ -1159,9 +1046,11 @@ function renderMancheEditor(m){
           ${positions.map(p=>`<button type="button" class="posBtn ${m.results[pid]===p?'active':''}" data-pos="${p}">${p}${p===1?'er':'e'}</button>`).join('')}
         </div>
       </div>`).join('')}
-    <button class="secondary saveMancheBtn" data-manche="${m.id}">Enregistrer les résultats</button>
-    ${mancheComplete(m) ? '' : `<button class="secondary toggleLiveBtn" data-manche="${m.id}" style="margin-left:8px; ${m.live?'border-color:var(--red); color:var(--red);':''}">${m.live?'Retirer "en direct"':'🔴 Marquer en direct'}</button>`}
-    <button class="danger delMancheBtn" data-manche="${m.id}" style="margin-left:8px;">Supprimer</button>
+    <div class="mancheActionsRow">
+      <button class="secondary saveMancheBtn" data-manche="${m.id}" title="Enregistrer les résultats">💾</button>
+      ${mancheComplete(m) ? '' : `<button class="secondary toggleLiveBtn" data-manche="${m.id}" title="${m.live?'Retirer \"en direct\"':'Marquer en direct'}" style="${m.live?'border-color:var(--red); color:var(--red);':''}">🔴</button>`}
+      <button class="danger delMancheBtn" data-manche="${m.id}" title="Supprimer">🗑️</button>
+    </div>
   </div>`;
 }
 
@@ -1184,18 +1073,47 @@ function renderNewFinaleForm(){
 
 // ---------- Handlers ----------
 let scoresTimerInterval = null;
+function getElapsedMs(){
+  if(!data.startedAt) return 0;
+  const totalPaused = data.totalPausedMs || 0;
+  const running = data.timerRunning !== false;
+  const endPoint = running ? Date.now() : (data.pausedAt || Date.now());
+  return Math.max(0, endPoint - data.startedAt - totalPaused);
+}
 function updateScoresTimer(){
   const el = document.getElementById('scoresElapsedTimer');
-  if(!el) return;
-  el.textContent = data.startedAt
-    ? `⏱️ ${formatDuration(Date.now() - data.startedAt)} depuis le début`
-    : '⏱️ Le tournoi n\'a pas encore démarré';
+  if(el){
+    el.textContent = data.startedAt ? `⏱️ ${formatDuration(getElapsedMs())}` : '⏱️ —';
+  }
+  const btn = document.getElementById('timerPlayPauseBtn');
+  if(btn){
+    const running = data.timerRunning !== false;
+    btn.textContent = running ? '⏸️' : '▶️';
+  }
 }
 function attachHandlers(){
+  const timerPlayPauseBtn = document.getElementById('timerPlayPauseBtn');
+  if(timerPlayPauseBtn) timerPlayPauseBtn.onclick = async ()=>{
+    if(!data.startedAt) return;
+    const running = data.timerRunning !== false;
+    if(running){
+      data.pausedAt = Date.now();
+      data.timerRunning = false;
+    } else {
+      data.totalPausedMs = (data.totalPausedMs||0) + (Date.now() - (data.pausedAt||Date.now()));
+      data.timerRunning = true;
+      data.pausedAt = null;
+    }
+    updateScoresTimer();
+    await saveData();
+  };
   const timerResetBtn = document.getElementById('timerResetBtn');
   if(timerResetBtn) timerResetBtn.onclick = async ()=>{
     if(!confirm('Redémarrer le chrono à maintenant ?')) return;
     data.startedAt = Date.now();
+    data.totalPausedMs = 0;
+    data.timerRunning = true;
+    data.pausedAt = null;
     updateScoresTimer();
     await saveData();
   };
@@ -1213,13 +1131,6 @@ function attachHandlers(){
     data.startedAt = d.getTime();
     updateScoresTimer();
     await saveData();
-  };
-  const myResultsBtn = document.getElementById('myResultsBtn');
-  if(myResultsBtn) myResultsBtn.onclick = ()=>{
-    selectedBilanPlayerId = followedPlayerId;
-    searchBilan = '';
-    const wrap = document.getElementById('bilanPlayerResult');
-    if(wrap){ wrap.innerHTML = bilanPlayerHtml(); wireBilanPlayerPicks(); }
   };
   bindArchiveToggle('planningArchiveDetails', (open)=>{ planningArchiveOpen = open; });
   bindArchiveToggle('scoresArchiveDetails', (open)=>{ scoresArchiveOpen = open; });
@@ -1476,17 +1387,6 @@ function attachHandlers(){
     const wrap = document.getElementById('scoresResults');
     if(wrap){ wrap.innerHTML = scoresResultsHtml(); bindScoreEditors(); }
   });
-
-  const searchBilanBox = document.getElementById('searchBilanInput');
-  if(searchBilanBox){
-    wireSearchBox('searchBilanInput', (val)=>{
-      searchBilan = val;
-      selectedBilanPlayerId = null;
-      const wrap = document.getElementById('bilanPlayerResult');
-      if(wrap){ wrap.innerHTML = bilanPlayerHtml(); wireBilanPlayerPicks(); }
-    });
-    wireBilanPlayerPicks();
-  }
 }
 
 function bindScoreEditors(){
@@ -1602,7 +1502,6 @@ function updateLockBtn(){
     projectionMode = false;
     document.body.classList.remove('projection');
     if(pBtn) pBtn.textContent = '📽️';
-    clearInterval(projectionTickInterval);
     if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
   }
 }
@@ -1700,12 +1599,12 @@ function checkFollowedLiveAlert(){
 function showPlayerStatsModal(playerId){
   const p = data.players.find(x=>x.id===playerId);
   if(!p) return;
-  if(!playerHasResults(p.id)){
+  if(!tournamentFinished()){
     document.getElementById('modalRoot').innerHTML = `
       <div class="modal-bg" id="statsModalBg">
         <div class="modal" style="text-align:center;">
           <h2 style="margin-bottom:10px;">${playerAvatarRow(p.id,30)}</h2>
-          <p style="font-size:13px; color:var(--text-dim);">Ce joueur n'a pas encore de résultat enregistré.<br>Reviens une fois qu'il aura joué au moins une course.</p>
+          <p style="font-size:13px; color:var(--text-dim);">Les statistiques détaillées seront disponibles une fois toutes les courses du tournoi terminées.</p>
           <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:16px;">Fermer</button>
         </div>
       </div>`;
@@ -1735,11 +1634,21 @@ function showPlayerStatsModal(playerId){
         <div class="planning-group-title" style="margin-top:16px;">Historique des courses</div>
         ${qualifManches.length ? qualifManches.map(m=>`<div class="historyItem">${m.label} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('') : '<p style="font-size:12.5px; color:var(--text-dim);">Aucune course jouée pour le moment.</p>'}
         ${finaleManches.length ? `<div class="planning-group-title" style="margin-top:16px;">Phases finales</div>${finaleManches.map(m=>`<div class="historyItem">${m.label} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place</div>`).join('')}` : ''}
-        <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:16px;">Fermer</button>
+        <button class="secondary" id="copyPlayerLinkBtn" data-player-link="${p.id}" style="width:100%; margin-top:16px;">🔗 Copier le lien de sa fiche</button>
+        <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:8px;">Fermer</button>
       </div>
     </div>`;
   document.getElementById('statsCloseBtn').onclick = ()=> document.getElementById('modalRoot').innerHTML='';
   document.getElementById('statsModalBg').onclick = (e)=>{ if(e.target.id==='statsModalBg') document.getElementById('modalRoot').innerHTML=''; };
+  document.getElementById('copyPlayerLinkBtn').onclick = async ()=>{
+    const url = location.origin + location.pathname + '?joueur=' + encodeURIComponent(p.id);
+    try{
+      await navigator.clipboard.writeText(url);
+      alert('Lien copié !');
+    }catch(e){
+      prompt('Copie ce lien :', url);
+    }
+  };
 }
 document.getElementById('statsBtn').onclick = ()=>{
   if(!followedPlayerId){
@@ -1816,63 +1725,27 @@ document.getElementById('projectionQrCornerImg').src = QR_DATA_URI;
 
 // ---------- Mode projection ----------
 let projectionMode = false;
-let projectionTickInterval = null;
-let projectionElapsed = 0;
-const PROJECTION_DURATION = 10000;
 
-function tabLabel(tab){
-  return tab==='classement' ? '🏆 Classement' : '🗓️ Planning';
+function updateProjTabsUI(){
+  const cBtn = document.getElementById('projTabClassement');
+  const pBtn = document.getElementById('projTabPlanning');
+  if(cBtn) cBtn.classList.toggle('active', currentTab==='classement');
+  if(pBtn) pBtn.classList.toggle('active', currentTab==='planning');
 }
-function updateProjectionTimerUI(){
-  const fill = document.getElementById('projectionTimerFill');
-  const label = document.getElementById('projectionStatusLabel');
-  if(fill) fill.style.width = Math.min(100, (projectionElapsed/PROJECTION_DURATION)*100) + '%';
-  if(label){
-    const remaining = Math.max(0, Math.ceil((PROJECTION_DURATION-projectionElapsed)/1000));
-    const nextTab = currentTab==='classement' ? 'Planning' : 'Classement';
-    label.textContent = projPaused
-      ? `${tabLabel(currentTab)}  ·  ⏸️ En pause`
-      : `${tabLabel(currentTab)}  ·  ${nextTab} dans ${remaining}s`;
-  }
-}
-let projPaused = false;
-function updateProjectionPauseBtn(){
-  const btn = document.getElementById('projPauseBtn');
-  if(btn) btn.textContent = projPaused ? '▶️' : '⏸️';
-}
-function startProjectionTicker(){
-  clearInterval(projectionTickInterval);
-  projectionElapsed = 0;
-  projPaused = false;
-  updateProjectionPauseBtn();
-  updateProjectionTimerUI();
-  projectionTickInterval = setInterval(()=>{
-    if(projPaused) return;
-    projectionElapsed += 200;
-    if(projectionElapsed >= PROJECTION_DURATION){
-      projectionElapsed = 0;
-      currentTab = currentTab==='classement' ? 'planning' : 'classement';
-      render();
-    }
-    updateProjectionTimerUI();
-  }, 200);
-}
-document.getElementById('projSkipBtn').onclick = ()=>{
-  currentTab = currentTab==='classement' ? 'planning' : 'classement';
-  projectionElapsed = 0;
+document.getElementById('projTabClassement').onclick = ()=>{
+  currentTab = 'classement';
   render();
-  updateProjectionTimerUI();
+  updateProjTabsUI();
 };
-document.getElementById('projPauseBtn').onclick = ()=>{
-  projPaused = !projPaused;
-  updateProjectionPauseBtn();
-  updateProjectionTimerUI();
+document.getElementById('projTabPlanning').onclick = ()=>{
+  currentTab = 'planning';
+  render();
+  updateProjTabsUI();
 };
 function exitProjectionAndLock(){
   projectionMode = false;
   document.body.classList.remove('projection');
   if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
-  clearInterval(projectionTickInterval);
   unlocked = false;
   currentTab = 'planning';
   updateLockBtn();
@@ -1886,7 +1759,7 @@ document.getElementById('projectionBtn').onclick = ()=>{
     document.documentElement.requestFullscreen?.().catch(()=>{});
     currentTab = 'planning';
     render();
-    startProjectionTicker();
+    updateProjTabsUI();
     return;
   }
   if(confirm('Quitter la projection ?')) exitProjectionAndLock();
@@ -1942,15 +1815,15 @@ async function init(){
   }
   const params = new URLSearchParams(location.search);
   const joueurParam = params.get('joueur');
-  if(joueurParam && data.players.some(p=>p.id===joueurParam)){
-    selectedBilanPlayerId = joueurParam;
-    currentTab = 'bilan';
-  }
   resetLiveBaseline();
   render();
   updateSyncIndicator();
   updateFollowBtn();
-  if(!joueurParam) maybeShowTutorial();
+  if(joueurParam && data.players.some(p=>p.id===joueurParam)){
+    showPlayerStatsModal(joueurParam);
+  } else {
+    maybeShowTutorial();
+  }
   async function pollTick(){
     if(!unlocked && !document.hidden){
       if(hasPendingLocalChanges){
