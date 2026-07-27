@@ -134,16 +134,38 @@
   .historyItem:first-child{ border-top:none; }
   .historyItem b{ color:var(--text); }
 
-  body.projection main{ padding:20px; }
+  .projection-timerbar{ display:none; height:5px; background:var(--line); }
+  .projection-timerbar .fill{ height:100%; width:0%; background:linear-gradient(90deg, var(--yellow), var(--red)); }
+  .projection-status{
+    display:none; text-align:center; padding:11px; font-size:14px; font-weight:800;
+    letter-spacing:.6px; text-transform:uppercase; color:var(--yellow);
+    background:var(--bg-alt); border-bottom:1px solid var(--line);
+  }
+  body.projection .projection-timerbar,
+  body.projection .projection-status{ display:block; }
+
+  body.projection main{ max-width:980px; margin:0 auto; padding:30px 24px 50px; }
+  body.projection header{ text-align:center; padding-bottom:8px; }
+  body.projection .headerTop{ justify-content:center; }
+  body.projection .lockbtn{ opacity:.4; font-size:9px; padding:5px 8px; }
   body.projection nav{ display:none; }
-  body.projection h1{ font-size:32px; }
-  body.projection .card h2{ font-size:19px; }
-  body.projection table{ font-size:20px; }
-  body.projection th{ font-size:14px; }
-  body.projection .pts{ font-size:21px; }
-  body.projection .manche .label{ font-size:16px; }
-  body.projection .manche .players{ font-size:16px; }
-  body.projection .manche .status{ font-size:13px; }
+  body.projection h1{ font-size:38px; margin-top:10px; }
+  body.projection .card{ padding:28px; border-radius:20px; box-shadow:0 10px 40px #0006; }
+  body.projection .card h2{ font-size:22px; text-align:center; margin-bottom:18px; }
+  body.projection .searchbox{ display:none; }
+  body.projection table{ font-size:22px; }
+  body.projection th{ font-size:15px; padding:10px 12px; }
+  body.projection td{ padding:14px 12px; }
+  body.projection tr.rank1 td{ font-size:27px; }
+  body.projection .pts{ font-size:24px; }
+  body.projection .manche{ padding:20px; border-radius:14px; }
+  body.projection .manche .label{ font-size:19px; }
+  body.projection .manche .players{ font-size:19px; margin-top:10px; }
+  body.projection .manche .status{ font-size:14px; margin-top:6px; }
+  body.projection .manche.live{ box-shadow:0 0 0 2px var(--red), 0 0 30px #e8483c55; }
+  body.projection .live-badge{ font-size:12px; padding:4px 11px; }
+  body.projection .hint{ font-size:14px; text-align:center; margin-top:14px; }
+  body.projection button.secondary{ display:none; }
 </style>
 </head>
 <body>
@@ -157,6 +179,8 @@
   <h1><span class="fx-red">Tournoi</span> <span>Mario Kart</span></h1>
 </header>
 <div class="stripe"></div>
+<div class="projection-timerbar"><div class="fill" id="projectionTimerFill"></div></div>
+<div class="projection-status" id="projectionStatus"><span id="projectionStatusLabel"></span></div>
 
 <nav id="tabs"></nav>
 <main id="content"></main>
@@ -903,7 +927,37 @@ document.getElementById('lockBtn').onclick = ()=>{
 
 // ---------- Mode projection ----------
 let projectionMode = false;
-let projectionInterval = null;
+let projectionTickInterval = null;
+let projectionElapsed = 0;
+const PROJECTION_DURATION = 10000;
+
+function tabLabel(tab){
+  return tab==='classement' ? '🏆 Classement' : '🗓️ Planning';
+}
+function updateProjectionTimerUI(){
+  const fill = document.getElementById('projectionTimerFill');
+  const label = document.getElementById('projectionStatusLabel');
+  if(fill) fill.style.width = Math.min(100, (projectionElapsed/PROJECTION_DURATION)*100) + '%';
+  if(label){
+    const remaining = Math.max(0, Math.ceil((PROJECTION_DURATION-projectionElapsed)/1000));
+    const nextTab = currentTab==='classement' ? 'Planning' : 'Classement';
+    label.textContent = `${tabLabel(currentTab)}  ·  ${nextTab} dans ${remaining}s`;
+  }
+}
+function startProjectionTicker(){
+  clearInterval(projectionTickInterval);
+  projectionElapsed = 0;
+  updateProjectionTimerUI();
+  projectionTickInterval = setInterval(()=>{
+    projectionElapsed += 200;
+    if(projectionElapsed >= PROJECTION_DURATION){
+      projectionElapsed = 0;
+      currentTab = currentTab==='classement' ? 'planning' : 'classement';
+      render();
+    }
+    updateProjectionTimerUI();
+  }, 200);
+}
 document.getElementById('projectionBtn').onclick = ()=>{
   projectionMode = !projectionMode;
   document.body.classList.toggle('projection', projectionMode);
@@ -913,14 +967,11 @@ document.getElementById('projectionBtn').onclick = ()=>{
     document.documentElement.requestFullscreen?.().catch(()=>{});
     currentTab = 'classement';
     render();
-    projectionInterval = setInterval(()=>{
-      currentTab = currentTab==='classement' ? 'planning' : 'classement';
-      render();
-    }, 10000);
+    startProjectionTicker();
   } else {
     btn.textContent = '📽️ Projection';
     if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
-    clearInterval(projectionInterval);
+    clearInterval(projectionTickInterval);
   }
 };
 document.addEventListener('fullscreenchange', ()=>{
@@ -928,7 +979,7 @@ document.addEventListener('fullscreenchange', ()=>{
     projectionMode = false;
     document.body.classList.remove('projection');
     document.getElementById('projectionBtn').textContent = '📽️ Projection';
-    clearInterval(projectionInterval);
+    clearInterval(projectionTickInterval);
   }
 });
 
