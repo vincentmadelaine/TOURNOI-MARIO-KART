@@ -234,13 +234,14 @@
   .emoji-pick{ background:var(--bg); border:1px solid var(--line); border-radius:10px; font-size:21px; padding:7px 0; cursor:pointer; }
   .emoji-pick:hover{ border-color:var(--yellow); }
   .chip-emoji{ font-size:14px; cursor:pointer; }
+  .player-link{ cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
 </style>
 </head>
 <body>
 
 <header>
   <div class="headerTop">
-    <span id="syncIndicator" style="font-size:16px;" title="Statut de synchronisation">●</span>
+    <span id="syncIndicator" style="font-size:16px; display:none;" title="Statut de synchronisation">●</span>
     <button class="lockbtn" id="themeBtn">☀️</button>
     <button class="lockbtn" id="followBtn">👁️ Suivre</button>
     <button class="lockbtn" id="statsBtn">📊 Stats</button>
@@ -271,6 +272,12 @@ let currentTab = 'classement';
 let searchName = '';
 let searchClassement = '';
 let searchScores = '';
+let planningArchiveOpen = false;
+let scoresArchiveOpen = false;
+function bindArchiveToggle(elId, onToggle){
+  const el = document.getElementById(elId);
+  if(el) el.ontoggle = ()=> onToggle(el.open);
+}
 let searchBilan = '';
 let selectedBilanPlayerId = null;
 let followedPlayerId = null;
@@ -730,7 +737,8 @@ function viewBilan(){
 
   html += `<div class="card">
     <h2>Fiche joueur</h2>
-    <div class="search-wrap">
+    ${followedPlayerId ? `<button class="secondary" id="myResultsBtn" style="width:100%; margin-top:0;">👁️ Voir les résultats de ${playerEmoji(followedPlayerId)}${playerName(followedPlayerId)}</button>` : ''}
+    <div class="search-wrap" style="margin-top:${followedPlayerId?'10px':'0'};">
       <input class="searchbox" type="text" id="searchBilanInput" placeholder="Rechercher un joueur…" value="${searchBilan}">
       <button class="search-clear" type="button">✕</button>
     </div>
@@ -782,7 +790,7 @@ function classementRowsHtml(){
     ${filtered.map(r=>{
       const rank = rows.findIndex(x=>x.id===r.id);
       const isFollowed = r.id===followedPlayerId;
-      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td>${isFollowed?'👁️ ':''}${playerEmoji(r.id)}${r.name}</td><td class="pts">${r.pts}</td></tr>`;
+      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link" data-stats-player="${r.id}">${isFollowed?'👁️ ':''}${playerEmoji(r.id)}${r.name}</span></td><td class="pts">${r.pts}</td></tr>`;
     }).join('')}
     </tbody></table>`;
 }
@@ -808,7 +816,11 @@ function mancheCardHtml(m, extraClass){
   return `<div class="manche ${m.live?'live':''} ${hasFollowed?'followed':''} ${extraClass||''}">
         <div class="label">${m.label} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
         <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':(m.live?'🔴 En cours — c\'est maintenant !':'À venir')}</div>
-        <div class="players">${m.players.map(pid=>pid===followedPlayerId?`<span class="followed-name">👁️ ${playerEmoji(pid)}${playerName(pid)}</span>`:playerEmoji(pid)+playerName(pid)).join(' · ')}</div>
+        <div class="players">${m.players.map(pid=>{
+          const inner = `${playerEmoji(pid)}${playerName(pid)}`;
+          const wrapped = `<span class="player-link" data-stats-player="${pid}">${inner}</span>`;
+          return pid===followedPlayerId ? `<span class="followed-name">👁️ ${wrapped}</span>` : wrapped;
+        }).join(' · ')}</div>
       </div>`;
 }
 function mancheResultCardHtml(m){
@@ -818,8 +830,9 @@ function mancheResultCardHtml(m){
         <div class="label">${m.label} <span class="status done" style="display:inline; font-size:11px;">✓ Terminée</span></div>
         <div class="players">
           ${ranked.map(([pid,pos])=>{
-            const text = `${pos}${pos===1?'er':'e'} ${playerEmoji(pid)}${playerName(pid)}`;
-            return pid===followedPlayerId ? `<span class="followed-name">👁️ ${text}</span>` : text;
+            const inner = `${pos}${pos===1?'er':'e'} ${playerEmoji(pid)}${playerName(pid)}`;
+            const wrapped = `<span class="player-link" data-stats-player="${pid}">${inner}</span>`;
+            return pid===followedPlayerId ? `<span class="followed-name">👁️ ${wrapped}</span>` : wrapped;
           }).join(' · ')}
         </div>
       </div>`;
@@ -847,7 +860,7 @@ function planningResultsHtml(){
   function renderArchived(list){
     const filtered = list.filter(matches);
     if(!filtered.length) return '';
-    return `<details style="margin-top:16px;">
+    return `<details id="planningArchiveDetails" style="margin-top:16px;" ${planningArchiveOpen?'open':''}>
       <summary style="cursor:pointer; color:var(--text-dim); font-size:12px; text-transform:uppercase; letter-spacing:.5px; font-weight:800; padding:8px 0;">📦 ${filtered.length} course(s) terminée(s) — voir les résultats</summary>
       ${filtered.map(m=>mancheResultCardHtml(m)).join('')}
     </details>`;
@@ -977,7 +990,7 @@ function scoresResultsHtml(){
   return `<div class="card">
     <h2>Saisie des scores — Qualifications</h2>
     ${qualifTodo.map(m=>renderMancheEditor(m)).join('') || '<div class="empty">Toutes les manches ont un résultat 🎉</div>'}
-    ${qualifDone.length ? `<details style="margin-top:14px;">
+    ${qualifDone.length ? `<details id="scoresArchiveDetails" style="margin-top:14px;" ${scoresArchiveOpen?'open':''}>
       <summary style="cursor:pointer; color:var(--text-dim); font-size:12.5px; padding:8px 0;">📦 ${qualifDone.length} manche(s) archivée(s) (terminée) — cliquer pour afficher</summary>
       ${qualifDone.map(m=>renderMancheEditor(m)).join('')}
     </details>` : ''}
@@ -1051,6 +1064,15 @@ function updateScoresTimer(){
     : '⏱️ Le tournoi n\'a pas encore démarré';
 }
 function attachHandlers(){
+  const myResultsBtn = document.getElementById('myResultsBtn');
+  if(myResultsBtn) myResultsBtn.onclick = ()=>{
+    selectedBilanPlayerId = followedPlayerId;
+    searchBilan = '';
+    const wrap = document.getElementById('bilanPlayerResult');
+    if(wrap){ wrap.innerHTML = bilanPlayerHtml(); wireBilanPlayerPicks(); }
+  };
+  bindArchiveToggle('planningArchiveDetails', (open)=>{ planningArchiveOpen = open; });
+  bindArchiveToggle('scoresArchiveDetails', (open)=>{ scoresArchiveOpen = open; });
   if(currentTab==='scores'){
     updateScoresTimer();
     if(!scoresTimerInterval) scoresTimerInterval = setInterval(updateScoresTimer, 15000);
@@ -1120,6 +1142,7 @@ function attachHandlers(){
     searchName = val;
     const wrap = document.getElementById('planningResults');
     if(wrap) wrap.innerHTML = planningResultsHtml();
+    bindArchiveToggle('planningArchiveDetails', (open)=>{ planningArchiveOpen = open; });
   });
 
   wireSearchBox('searchClassementInput', (val)=>{
@@ -1267,6 +1290,7 @@ function attachHandlers(){
 }
 
 function bindScoreEditors(){
+  bindArchiveToggle('scoresArchiveDetails', (open)=>{ scoresArchiveOpen = open; });
   document.querySelectorAll('.posBtn').forEach(btn=>{
     btn.onclick = ()=>{
       const group = btn.parentElement;
@@ -1371,6 +1395,8 @@ function updateLockBtn(){
   b.classList.toggle('unlocked', unlocked);
   const pBtn = document.getElementById('projectionBtn');
   if(pBtn) pBtn.style.display = unlocked ? 'inline-block' : 'none';
+  const syncEl = document.getElementById('syncIndicator');
+  if(syncEl) syncEl.style.display = unlocked ? 'inline' : 'none';
   if(!unlocked && projectionMode){
     projectionMode = false;
     document.body.classList.remove('projection');
@@ -1470,27 +1496,9 @@ function checkFollowedLiveAlert(){
   resetLiveBaseline();
 }
 
-document.getElementById('statsBtn').onclick = ()=>{
-  if(!followedPlayerId){
-    document.getElementById('modalRoot').innerHTML = `
-      <div class="modal-bg" id="statsModalBg">
-        <div class="modal" style="text-align:center;">
-          <h2 style="margin-bottom:10px;">Aucun joueur suivi</h2>
-          <p style="font-size:13px; color:var(--text-dim); margin-bottom:14px;">Choisis d'abord un joueur à suivre pour voir ses statistiques.</p>
-          <button class="primary" id="statsGoFollowBtn" style="width:100%;">👁️ Suivre un joueur</button>
-          <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:8px;">Fermer</button>
-        </div>
-      </div>`;
-    document.getElementById('statsCloseBtn').onclick = ()=> document.getElementById('modalRoot').innerHTML='';
-    document.getElementById('statsModalBg').onclick = (e)=>{ if(e.target.id==='statsModalBg') document.getElementById('modalRoot').innerHTML=''; };
-    document.getElementById('statsGoFollowBtn').onclick = ()=>{
-      document.getElementById('modalRoot').innerHTML='';
-      document.getElementById('followBtn').click();
-    };
-    return;
-  }
-  const p = data.players.find(x=>x.id===followedPlayerId);
-  if(!p){ setFollowed(null); return; }
+function showPlayerStatsModal(playerId){
+  const p = data.players.find(x=>x.id===playerId);
+  if(!p) return;
   const rows = classementGeneral();
   const rank = rows.findIndex(r=>r.id===p.id)+1;
   const total = rows.find(r=>r.id===p.id)?.pts || 0;
@@ -1518,6 +1526,27 @@ document.getElementById('statsBtn').onclick = ()=>{
     </div>`;
   document.getElementById('statsCloseBtn').onclick = ()=> document.getElementById('modalRoot').innerHTML='';
   document.getElementById('statsModalBg').onclick = (e)=>{ if(e.target.id==='statsModalBg') document.getElementById('modalRoot').innerHTML=''; };
+}
+document.getElementById('statsBtn').onclick = ()=>{
+  if(!followedPlayerId){
+    document.getElementById('modalRoot').innerHTML = `
+      <div class="modal-bg" id="statsModalBg">
+        <div class="modal" style="text-align:center;">
+          <h2 style="margin-bottom:10px;">Aucun joueur suivi</h2>
+          <p style="font-size:13px; color:var(--text-dim); margin-bottom:14px;">Choisis d'abord un joueur à suivre pour voir ses statistiques.</p>
+          <button class="primary" id="statsGoFollowBtn" style="width:100%;">👁️ Suivre un joueur</button>
+          <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:8px;">Fermer</button>
+        </div>
+      </div>`;
+    document.getElementById('statsCloseBtn').onclick = ()=> document.getElementById('modalRoot').innerHTML='';
+    document.getElementById('statsModalBg').onclick = (e)=>{ if(e.target.id==='statsModalBg') document.getElementById('modalRoot').innerHTML=''; };
+    document.getElementById('statsGoFollowBtn').onclick = ()=>{
+      document.getElementById('modalRoot').innerHTML='';
+      document.getElementById('followBtn').click();
+    };
+    return;
+  }
+  showPlayerStatsModal(followedPlayerId);
 };
 
 document.getElementById('followBtn').onclick = ()=>{
@@ -1663,6 +1692,11 @@ async function init(){
     if(!document.hidden) pollTick();
   });
 }
+document.body.addEventListener('click', (e)=>{
+  const el = e.target.closest('[data-stats-player]');
+  if(el) showPlayerStatsModal(el.dataset.statsPlayer);
+});
+
 window.addEventListener('beforeunload', (e)=>{
   if(unlocked && hasPendingLocalChanges){
     e.preventDefault();
