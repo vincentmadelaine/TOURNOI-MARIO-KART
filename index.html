@@ -343,6 +343,103 @@ function classementGeneral(){
 function mancheComplete(m){
   return m.players.every(pid => m.results[pid] !== undefined);
 }
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function generateResultsImage(){
+  const rows = classementGeneral();
+  const podium = getPodiumManche();
+  const width = 800;
+  const rowH = 34;
+  const headerH = podium ? 250 : 130;
+  const height = headerH + rows.length*rowH + 50;
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#14161c';
+  ctx.fillRect(0,0,width,height);
+
+  // bande diagonale décorative
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0,0,width,8); ctx.clip();
+  for(let x=-40; x<width+40; x+=28){
+    ctx.fillStyle = (Math.floor(x/28)%2===0) ? '#ffc93c' : '#e8483c';
+    ctx.beginPath();
+    ctx.moveTo(x,0); ctx.lineTo(x+14,0); ctx.lineTo(x+14-8,8); ctx.lineTo(x-8,8);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // titre
+  ctx.textAlign = 'left';
+  ctx.font = 'italic 900 30px sans-serif';
+  ctx.fillStyle = '#e8483c';
+  ctx.fillText('TOURNOI', 30, 55);
+  const w1 = ctx.measureText('TOURNOI ').width;
+  ctx.fillStyle = '#ffc93c';
+  ctx.fillText('MARIO KART', 30+w1, 55);
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = '#9198a8';
+  ctx.fillText('AS Joliot-Curie — Résultats finaux', 30, 78);
+
+  let y = 100;
+
+  if(podium){
+    const ranked = Object.entries(podium.results).sort((a,b)=>a[1]-b[1]).slice(0,3);
+    const medals = ['🥇','🥈','🥉'];
+    const gap = 16;
+    const boxW = (width-60-2*gap)/3;
+    ranked.forEach(([pid,pos],i)=>{
+      const x = 30 + i*(boxW+gap);
+      ctx.fillStyle = '#20232d';
+      ctx.strokeStyle = i===0 ? '#d4af37' : '#2a2e38';
+      ctx.lineWidth = 2;
+      roundRect(ctx, x, y, boxW, 110, 10);
+      ctx.fill(); ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.font = '34px sans-serif';
+      ctx.fillStyle = '#f1ede3';
+      ctx.fillText(medals[i], x+boxW/2, y+48);
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText(playerName(pid), x+boxW/2, y+80);
+    });
+    ctx.textAlign = 'left';
+    y += 140;
+  }
+
+  ctx.fillStyle = '#ffc93c';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('CLASSEMENT GÉNÉRAL', 30, y);
+  y += 14;
+  ctx.strokeStyle = '#2a2e38';
+  ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(width-30,y); ctx.stroke();
+  y += 24;
+
+  rows.forEach((r,i)=>{
+    ctx.textAlign = 'left';
+    ctx.fillStyle = i===0 ? '#d4af37' : '#f1ede3';
+    ctx.font = i===0 ? 'bold 16px sans-serif' : '15px sans-serif';
+    ctx.fillText(`${i+1}.  ${r.name}`, 30, y);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffc93c';
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText(`${r.pts} pts`, width-30, y);
+    y += rowH;
+    if(i<rows.length-1){
+      ctx.strokeStyle = '#2a2e38';
+      ctx.beginPath(); ctx.moveTo(30,y-rowH+22); ctx.lineTo(width-30,y-rowH+22); ctx.stroke();
+    }
+  });
+
+  return canvas;
+}
 function qualifsComplete(){
   const qm = data.manches.filter(m=>m.phase==='qualif');
   return qm.length>0 && qm.every(mancheComplete);
@@ -407,7 +504,7 @@ function viewClassement(){
     <input class="searchbox" type="text" id="searchClassementInput" placeholder="Rechercher un joueur…" value="${searchClassement}">
     <div id="classementResults">${classementRowsHtml()}</div>
     <small class="hint">Barème : ${data.config.pointsTable.map((p,i)=>`${i+1}ᵉ = ${p}pt`).join(' · ')}</small>
-    ${canExport ? '<button class="secondary" id="exportCsvBtn">📥 Télécharger le classement (CSV)</button>' : ''}
+    ${canExport ? '<div class="row" style="margin-top:12px;"><button class="secondary" id="exportImgBtn" style="margin-top:0;">🖼️ Image</button><button class="secondary" id="exportCsvBtn" style="margin-top:0;">📥 CSV</button></div>' : ''}
   </div>`;
 }
 
@@ -584,6 +681,15 @@ function renderNewFinaleForm(){
 
 // ---------- Handlers ----------
 function attachHandlers(){
+  const exportImg = document.getElementById('exportImgBtn');
+  if(exportImg) exportImg.onclick = ()=>{
+    const canvas = generateResultsImage();
+    const a = document.createElement('a');
+    a.download = 'classement-mario-kart.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+
   const exportCsv = document.getElementById('exportCsvBtn');
   if(exportCsv) exportCsv.onclick = ()=>{
     const rows = classementGeneral();
