@@ -120,6 +120,30 @@
   .checklist{max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px; margin-top:6px;}
   .checkitem{display:flex; align-items:center; gap:8px; padding:5px 2px; font-size:13px;}
   small.hint{display:block; color:var(--text-dim); font-size:11.5px; margin-top:4px;}
+
+  .manche.live{ border-color:var(--red); box-shadow:0 0 0 1px var(--red); }
+  .live-badge{
+    display:inline-flex; align-items:center; gap:5px; background:var(--red); color:#fff;
+    font-size:10px; font-weight:800; text-transform:uppercase; padding:2px 8px; border-radius:20px; margin-left:6px;
+  }
+  .live-dot{ width:6px; height:6px; border-radius:50%; background:#fff; animation:pulse 1.2s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.3;} }
+  .undoRedoRow{ display:flex; gap:8px; margin-top:8px; }
+  .undoRedoRow button{ margin-top:0; }
+  .historyItem{ font-size:12.5px; padding:6px 0; border-top:1px solid var(--line); color:var(--text-dim); }
+  .historyItem:first-child{ border-top:none; }
+  .historyItem b{ color:var(--text); }
+
+  body.projection main{ padding:20px; }
+  body.projection nav{ display:none; }
+  body.projection h1{ font-size:32px; }
+  body.projection .card h2{ font-size:19px; }
+  body.projection table{ font-size:20px; }
+  body.projection th{ font-size:14px; }
+  body.projection .pts{ font-size:21px; }
+  body.projection .manche .label{ font-size:16px; }
+  body.projection .manche .players{ font-size:16px; }
+  body.projection .manche .status{ font-size:13px; }
 </style>
 </head>
 <body>
@@ -127,6 +151,7 @@
 <header>
   <div class="headerTop">
     <span id="syncIndicator" style="font-size:16px;" title="Statut de synchronisation">●</span>
+    <button class="lockbtn" id="projectionBtn">📽️ Projection</button>
     <button class="lockbtn" id="lockBtn">🔒 Admin</button>
   </div>
   <h1><span class="fx-red">Tournoi</span> <span>Mario Kart</span></h1>
@@ -146,6 +171,7 @@ let data = { config:null, players:[], manches:[], status:'setup' };
 let unlocked = false;
 let currentTab = 'classement';
 let searchName = '';
+let searchClassement = '';
 
 // ---------- Storage (Google Sheets via Apps Script) ----------
 let syncStatus = 'ok'; // 'ok' | 'error' | 'unconfigured'
@@ -260,6 +286,29 @@ function playersChipsHtml(){
   return data.players.map(p=>`<span class="playerchip">${p.name} <button data-del="${p.id}">✕</button></span>`).join('')
     || '<span style="color:var(--text-dim); font-size:12.5px;">Aucun joueur pour le moment.</span>';
 }
+let undoStack = [];
+let redoStack = [];
+function snapshotPlayers(){
+  undoStack.push(JSON.stringify(data.players));
+  if(undoStack.length>10) undoStack.shift();
+  redoStack = [];
+}
+async function undoPlayers(){
+  if(!undoStack.length) return;
+  redoStack.push(JSON.stringify(data.players));
+  if(redoStack.length>10) redoStack.shift();
+  data.players = JSON.parse(undoStack.pop());
+  refreshPlayersUI();
+  await saveData();
+}
+async function redoPlayers(){
+  if(!redoStack.length) return;
+  undoStack.push(JSON.stringify(data.players));
+  if(undoStack.length>10) undoStack.shift();
+  data.players = JSON.parse(redoStack.pop());
+  refreshPlayersUI();
+  await saveData();
+}
 function refreshPlayersUI(){
   const wrap = document.getElementById('playersChipsWrap');
   if(wrap) wrap.innerHTML = playersChipsHtml();
@@ -267,10 +316,15 @@ function refreshPlayersUI(){
   if(count) count.textContent = data.players.length;
   const gen = document.getElementById('genBtn');
   if(gen) gen.disabled = !data.config || data.players.length < 2;
+  const undoBtn = document.getElementById('undoPlayersBtn');
+  if(undoBtn) undoBtn.disabled = undoStack.length===0;
+  const redoBtn = document.getElementById('redoPlayersBtn');
+  if(redoBtn) redoBtn.disabled = redoStack.length===0;
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick = async ()=>{
+    snapshotPlayers();
     data.players = data.players.filter(p=>p.id!==b.dataset.del);
-    await saveData();
     refreshPlayersUI();
+    await saveData();
   });
 }
 function pointsFor(position){
@@ -292,6 +346,13 @@ function mancheComplete(m){
 function qualifsComplete(){
   const qm = data.manches.filter(m=>m.phase==='qualif');
   return qm.length>0 && qm.every(mancheComplete);
+}
+function getPodiumManche(){
+  const fm = data.manches.filter(m=>m.phase!=='qualif');
+  return [...fm].reverse().find(m=>m.isFinale && mancheComplete(m));
+}
+function tournamentFinished(){
+  return !!getPodiumManche();
 }
 
 // ---------- Render root ----------
@@ -324,40 +385,58 @@ function renderContent(){
 }
 
 // ---------- Vue Classement ----------
+function classementRowsHtml(){
+  const rows = classementGeneral();
+  const filtered = searchClassement.trim()
+    ? rows.filter(r=>r.name.toLowerCase().includes(searchClassement.toLowerCase()))
+    : rows;
+  if(filtered.length===0) return `<div class="empty">Aucun résultat pour ce joueur.</div>`;
+  return `<table><thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead><tbody>
+    ${filtered.map(r=>{
+      const rank = rows.findIndex(x=>x.id===r.id);
+      return `<tr class="${rank===0?'rank1':''}"><td>${rank+1}</td><td>${r.name}</td><td class="pts">${r.pts}</td></tr>`;
+    }).join('')}
+    </tbody></table>`;
+}
 function viewClassement(){
   const rows = classementGeneral();
   if(rows.length===0) return `<div class="card"><div class="empty">Aucun joueur enregistré pour l'instant.</div></div>`;
+  const canExport = unlocked || tournamentFinished();
   return `<div class="card">
     <h2>Classement général — Qualifications</h2>
-    <table><thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead><tbody>
-    ${rows.map((r,i)=>`<tr class="${i===0?'rank1':''}"><td>${i+1}</td><td>${r.name}</td><td class="pts">${r.pts}</td></tr>`).join('')}
-    </tbody></table>
+    <input class="searchbox" type="text" id="searchClassementInput" placeholder="Rechercher un joueur…" value="${searchClassement}">
+    <div id="classementResults">${classementRowsHtml()}</div>
     <small class="hint">Barème : ${data.config.pointsTable.map((p,i)=>`${i+1}ᵉ = ${p}pt`).join(' · ')}</small>
+    ${canExport ? '<button class="secondary" id="exportCsvBtn">📥 Télécharger le classement (CSV)</button>' : ''}
   </div>`;
 }
 
 // ---------- Vue Planning ----------
-function viewPlanning(){
+function planningResultsHtml(){
   const qm = data.manches.filter(m=>m.phase==='qualif');
-  if(qm.length===0) return `<div class="card"><div class="empty">Aucune manche générée pour le moment.</div></div>`;
   const filtered = searchName.trim()
     ? qm.filter(m=>m.players.some(pid=>playerName(pid).toLowerCase().includes(searchName.toLowerCase())))
     : qm;
+  return filtered.map(m=>`
+      <div class="manche ${m.live?'live':''}">
+        <div class="label">${m.label} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
+        <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':(m.live?'🔴 En cours — c\'est maintenant !':'À venir')}</div>
+        <div class="players">${m.players.map(pid=>playerName(pid)).join(' · ')}</div>
+      </div>`).join('') || `<div class="empty">Aucun résultat pour ce joueur.</div>`;
+}
+function viewPlanning(){
+  const qm = data.manches.filter(m=>m.phase==='qualif');
+  if(qm.length===0) return `<div class="card"><div class="empty">Aucune manche générée pour le moment.</div></div>`;
   return `<div class="card">
     <input class="searchbox" type="text" id="searchInput" placeholder="Rechercher un joueur…" value="${searchName}">
-    ${filtered.map(m=>`
-      <div class="manche">
-        <div class="label">${m.label}</div>
-        <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':'À venir'}</div>
-        <div class="players">${m.players.map(pid=>playerName(pid)).join(' · ')}</div>
-      </div>`).join('') || `<div class="empty">Aucun résultat pour ce joueur.</div>`}
+    <div id="planningResults">${planningResultsHtml()}</div>
   </div>`;
 }
 
 // ---------- Vue Finales ----------
 function viewFinales(){
   const fm = data.manches.filter(m=>m.phase!=='qualif');
-  const podiumManche = [...fm].reverse().find(m=>m.isFinale && mancheComplete(m));
+  const podiumManche = getPodiumManche();
   let html = '';
   if(podiumManche){
     const ranked = Object.entries(podiumManche.results).sort((a,b)=>a[1]-b[1]);
@@ -380,7 +459,7 @@ function viewFinales(){
       <p style="font-size:12.5px;"><span class="badge argent">Tableau Luigi</span> ${argent.map(r=>r.name).join(', ') || '—'}</p>
     </div>`;
   } else {
-    html += `<div class="card"><div class="empty">La répartition Or / Argent apparaîtra une fois toutes les qualifications terminées.</div></div>`;
+    html += `<div class="card"><div class="empty">Les phases finales apparaîtront une fois les qualifications terminées.</div></div>`;
   }
   if(fm.length){
     html += `<div class="card"><h2>Manches finales</h2>
@@ -422,6 +501,10 @@ function viewReglages(){
     <label>Ajout rapide (un prénom par ligne)</label>
     <textarea id="bulkPlayers" rows="4" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:10px; font-size:13px;" placeholder="Lucas&#10;Emma&#10;Nolan…"></textarea>
     <button class="secondary" id="bulkAddBtn">Ajouter la liste</button>
+    <div class="undoRedoRow">
+      <button class="secondary" id="undoPlayersBtn" disabled>↩️ Annuler</button>
+      <button class="secondary" id="redoPlayersBtn" disabled>↪️ Rétablir</button>
+    </div>
     <div id="playersChipsWrap" style="margin-top:12px;">
       ${playersChipsHtml()}
     </div>
@@ -457,13 +540,17 @@ function viewScores(){
     <h2>Manches finales</h2>
     ${finales.map(m=>renderMancheEditor(m)).join('') || '<p style="font-size:12.5px; color:var(--text-dim);">Aucune manche finale créée.</p>'}
     ${qualifsComplete() ? renderNewFinaleForm() : '<p style="font-size:12px; color:var(--text-dim); margin-top:10px;">Termine les qualifications pour créer les manches finales.</p>'}
+  </div>
+  <div class="card">
+    <h2>Dernières modifications</h2>
+    ${(data.actionLog||[]).length ? data.actionLog.map(a=>`<div class="historyItem"><b>${a.time}</b> — Résultats enregistrés pour <b>${a.label}</b></div>`).join('') : '<p style="font-size:12.5px; color:var(--text-dim);">Aucune modification pour le moment.</p>'}
   </div>`;
 }
 
 function renderMancheEditor(m){
   const positions = Array.from({length:m.players.length}, (_,i)=>i+1);
-  return `<div class="manche">
-    <div class="label">${m.label} ${m.isFinale ? '<span class="badge or">Finale</span>' : ''}</div>
+  return `<div class="manche ${m.live?'live':''}">
+    <div class="label">${m.label} ${m.isFinale ? '<span class="badge or">Finale</span>' : ''} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
     ${m.players.map(pid=>`
       <div class="posrow">
         <span>${playerName(pid)}</span>
@@ -473,6 +560,7 @@ function renderMancheEditor(m){
         </select>
       </div>`).join('')}
     <button class="secondary saveMancheBtn" data-manche="${m.id}">Enregistrer les résultats</button>
+    <button class="secondary toggleLiveBtn" data-manche="${m.id}" style="margin-left:8px; ${m.live?'border-color:var(--red); color:var(--red);':''}">${m.live?'Retirer "en direct"':'🔴 Marquer en direct'}</button>
     <button class="danger delMancheBtn" data-manche="${m.id}" style="margin-left:8px;">Supprimer</button>
   </div>`;
 }
@@ -496,8 +584,37 @@ function renderNewFinaleForm(){
 
 // ---------- Handlers ----------
 function attachHandlers(){
+  const exportCsv = document.getElementById('exportCsvBtn');
+  if(exportCsv) exportCsv.onclick = ()=>{
+    const rows = classementGeneral();
+    let csv = 'Classement général\nRang,Joueur,Points\n';
+    rows.forEach((r,i)=>{ csv += `${i+1},"${r.name}",${r.pts}\n`; });
+    const podium = getPodiumManche();
+    if(podium){
+      csv += '\nPodium final\nPlace,Joueur\n';
+      const ranked = Object.entries(podium.results).sort((a,b)=>a[1]-b[1]);
+      ranked.forEach(([pid,pos])=>{ csv += `${pos},"${playerName(pid)}"\n`; });
+    }
+    const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'classement-mario-kart.csv';
+    a.click();
+  };
+
   const search = document.getElementById('searchInput');
-  if(search) search.oninput = (e)=>{ searchName = e.target.value; renderContent(); };
+  if(search) search.oninput = (e)=>{
+    searchName = e.target.value;
+    const wrap = document.getElementById('planningResults');
+    if(wrap) wrap.innerHTML = planningResultsHtml();
+  };
+
+  const searchC = document.getElementById('searchClassementInput');
+  if(searchC) searchC.oninput = (e)=>{
+    searchClassement = e.target.value;
+    const wrap = document.getElementById('classementResults');
+    if(wrap) wrap.innerHTML = classementRowsHtml();
+  };
 
   const saveCfg = document.getElementById('saveCfgBtn');
   if(saveCfg) saveCfg.onclick = async ()=>{
@@ -519,21 +636,29 @@ function attachHandlers(){
     const inp = document.getElementById('newPlayerName');
     const name = inp.value.trim();
     if(!name) return;
+    snapshotPlayers();
     data.players.push({ id: 'j'+Date.now()+Math.floor(Math.random()*1000), name });
     inp.value='';
-    await saveData();
     refreshPlayersUI();
+    await saveData();
   };
 
   const bulkAdd = document.getElementById('bulkAddBtn');
   if(bulkAdd) bulkAdd.onclick = async ()=>{
     const ta = document.getElementById('bulkPlayers');
     const names = ta.value.split('\n').map(n=>n.trim()).filter(Boolean);
+    if(!names.length) return;
+    snapshotPlayers();
     names.forEach(name=>data.players.push({ id:'j'+Date.now()+Math.floor(Math.random()*10000), name }));
     ta.value='';
-    await saveData();
     refreshPlayersUI();
+    await saveData();
   };
+
+  const undoBtn = document.getElementById('undoPlayersBtn');
+  if(undoBtn) undoBtn.onclick = undoPlayers;
+  const redoBtn = document.getElementById('redoPlayersBtn');
+  if(redoBtn) redoBtn.onclick = redoPlayers;
 
   refreshPlayersUI();
 
@@ -585,8 +710,18 @@ function attachHandlers(){
       if(s.value) m.results[s.dataset.player] = parseInt(s.value);
       else delete m.results[s.dataset.player];
     });
+    if(!data.actionLog) data.actionLog = [];
+    data.actionLog.unshift({ label: m.label, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
+    data.actionLog = data.actionLog.slice(0,5);
     await saveData();
     renderContent();
+  });
+
+  document.querySelectorAll('.toggleLiveBtn').forEach(b=>b.onclick = async ()=>{
+    const m = data.manches.find(x=>x.id===b.dataset.manche);
+    m.live = !m.live;
+    renderContent();
+    await saveData();
   });
 
   document.querySelectorAll('.delMancheBtn').forEach(b=>b.onclick = async ()=>{
@@ -598,6 +733,10 @@ function attachHandlers(){
 
   const createFinale = document.getElementById('createFinaleBtn');
   if(createFinale) createFinale.onclick = async ()=>{
+    if(!qualifsComplete()){
+      alert('Toutes les manches de qualification doivent avoir un résultat avant de créer une manche finale.');
+      return;
+    }
     const label = document.getElementById('finaleLabel').value.trim();
     const phase = document.getElementById('finalePhase').value;
     const isFinale = document.getElementById('finaleIsPodium').checked;
@@ -655,6 +794,37 @@ document.getElementById('lockBtn').onclick = ()=>{
     openPinModal();
   }
 };
+
+// ---------- Mode projection ----------
+let projectionMode = false;
+let projectionInterval = null;
+document.getElementById('projectionBtn').onclick = ()=>{
+  projectionMode = !projectionMode;
+  document.body.classList.toggle('projection', projectionMode);
+  const btn = document.getElementById('projectionBtn');
+  if(projectionMode){
+    btn.textContent = '✕ Quitter';
+    document.documentElement.requestFullscreen?.().catch(()=>{});
+    currentTab = 'classement';
+    render();
+    projectionInterval = setInterval(()=>{
+      currentTab = currentTab==='classement' ? 'planning' : 'classement';
+      render();
+    }, 10000);
+  } else {
+    btn.textContent = '📽️ Projection';
+    if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+    clearInterval(projectionInterval);
+  }
+};
+document.addEventListener('fullscreenchange', ()=>{
+  if(!document.fullscreenElement && projectionMode){
+    projectionMode = false;
+    document.body.classList.remove('projection');
+    document.getElementById('projectionBtn').textContent = '📽️ Projection';
+    clearInterval(projectionInterval);
+  }
+});
 
 // ---------- Init & polling ----------
 async function init(){
