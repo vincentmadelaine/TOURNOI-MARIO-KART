@@ -33,6 +33,7 @@
     font-style:italic; font-weight:800; margin-top:14px;
   }
   h1 span{color:var(--yellow);}
+  h1 span.fx-red{color:var(--red);}
   .subtitle{color:var(--text-dim); font-size:12.5px; margin-top:4px;}
   .lockbtn{
     background:var(--bg-card); border:1px solid var(--line); color:var(--text-dim);
@@ -128,8 +129,7 @@
     <span id="syncIndicator" style="font-size:16px;" title="Statut de synchronisation">●</span>
     <button class="lockbtn" id="lockBtn">🔒 Admin</button>
   </div>
-  <h1>AS Joliot-Curie <span>Mario Kart</span></h1>
-  <div class="subtitle">Tournoi solidaire — soirée crêpes & manettes</div>
+  <h1><span class="fx-red">Tournoi</span> <span>Mario Kart</span></h1>
 </header>
 <div class="stripe"></div>
 
@@ -152,21 +152,46 @@ let syncStatus = 'ok'; // 'ok' | 'error' | 'unconfigured'
 
 async function loadData(){
   if(APPS_SCRIPT_URL === 'REMPLACE_MOI'){ syncStatus='unconfigured'; return; }
-  try{
-    const res = await fetch(APPS_SCRIPT_URL);
-    const json = await res.json();
-    if(json && json.config !== undefined) data = json;
-    syncStatus = 'ok';
-  }catch(e){
-    console.error('Chargement impossible', e);
-    syncStatus = 'error';
-  }
+  return new Promise((resolve)=>{
+    const cbName = 'tournoiCb_' + Date.now() + Math.floor(Math.random()*10000);
+    let settled = false;
+    const script = document.createElement('script');
+    const timeout = setTimeout(()=>{
+      if(settled) return;
+      settled = true;
+      syncStatus = 'error';
+      delete window[cbName];
+      script.remove();
+      resolve();
+    }, 8000);
+    window[cbName] = function(json){
+      if(settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if(json && json.config !== undefined) data = json;
+      syncStatus = 'ok';
+      delete window[cbName];
+      script.remove();
+      resolve();
+    };
+    script.onerror = ()=>{
+      if(settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      syncStatus = 'error';
+      delete window[cbName];
+      resolve();
+    };
+    script.src = APPS_SCRIPT_URL + '?callback=' + cbName + '&_=' + Date.now();
+    document.body.appendChild(script);
+  });
 }
 async function saveData(){
   if(APPS_SCRIPT_URL === 'REMPLACE_MOI'){ syncStatus='unconfigured'; updateSyncIndicator(); return; }
   try{
     await fetch(APPS_SCRIPT_URL, {
       method:'POST',
+      mode:'no-cors',
       headers:{ 'Content-Type':'text/plain;charset=utf-8' },
       body: JSON.stringify(data)
     });
@@ -225,9 +250,8 @@ function generateSchedule(){
   for(let t=1; t<=data.config.tours; t++){
     const groups = generateRound(ids, data.config.groupSize, used);
     groups.forEach((g,gi)=>{
-      const poste = (gi % data.config.postes) + 1;
       manches.push({ id:'q'+(mid++), phase:'qualif', isFinale:false,
-        label:`Tour ${t} · Groupe ${gi+1} (Poste ${poste})`, players:g, results:{} });
+        label:`Tour ${t} · Groupe ${gi+1}`, players:g, results:{} });
     });
   }
   return manches;
@@ -352,8 +376,8 @@ function viewFinales(){
     const or = ranked.slice(0, data.config.qualifiedOr);
     const argent = ranked.slice(data.config.qualifiedOr);
     html += `<div class="card"><h2>Répartition après qualifications</h2>
-      <p style="font-size:12.5px; margin-bottom:8px;"><span class="badge or">Tableau Or</span> ${or.map(r=>r.name).join(', ') || '—'}</p>
-      <p style="font-size:12.5px;"><span class="badge argent">Tableau Argent</span> ${argent.map(r=>r.name).join(', ') || '—'}</p>
+      <p style="font-size:12.5px; margin-bottom:8px;"><span class="badge or">Tableau Mario</span> ${or.map(r=>r.name).join(', ') || '—'}</p>
+      <p style="font-size:12.5px;"><span class="badge argent">Tableau Luigi</span> ${argent.map(r=>r.name).join(', ') || '—'}</p>
     </div>`;
   } else {
     html += `<div class="card"><div class="empty">La répartition Or / Argent apparaîtra une fois toutes les qualifications terminées.</div></div>`;
@@ -373,20 +397,18 @@ function viewFinales(){
 
 // ---------- Vue Réglages (admin) ----------
 function viewReglages(){
-  const cfg = data.config || { pin:'', groupSize:4, tours:3, postes:2, pointsTable:[5,3,2,1], qualifiedOr:20 };
+  const cfg = data.config || { pin:'', groupSize:4, tours:3, pointsTable:[5,3,2,1], qualifiedOr:20 };
   return `<div class="card">
     <h2>Configuration du tournoi</h2>
     <label>Code admin (PIN)</label>
     <input type="text" id="cfgPin" value="${cfg.pin||''}" placeholder="ex : 2024">
-    <div class="row">
-      <div><label>Joueurs par groupe</label><input type="number" id="cfgGroupSize" value="${cfg.groupSize}" min="2" max="8"></div>
-      <div><label>Postes (Switch) simultanés</label><input type="number" id="cfgPostes" value="${cfg.postes}" min="1" max="6"></div>
-    </div>
+    <label>Joueurs par groupe</label>
+    <input type="number" id="cfgGroupSize" value="${cfg.groupSize}" min="2" max="8">
     <label>Tours de qualification (courses par joueur)</label>
     <input type="number" id="cfgTours" value="${cfg.tours}" min="1" max="10">
     <label>Barème de points (1er, 2e, 3e, 4e…) séparés par virgules</label>
     <input type="text" id="cfgPoints" value="${cfg.pointsTable.join(',')}">
-    <label>Nombre de qualifiés en Tableau Or</label>
+    <label>Nombre de qualifiés en Tableau Mario</label>
     <input type="number" id="cfgOr" value="${cfg.qualifiedOr}" min="1">
     <button class="primary" id="saveCfgBtn">Enregistrer la configuration</button>
   </div>
@@ -462,7 +484,7 @@ function renderNewFinaleForm(){
     <label>Nom de la manche</label>
     <input type="text" id="finaleLabel" placeholder="ex : Or — Finale">
     <label>Phase</label>
-    <select id="finalePhase"><option value="or">Tableau Or</option><option value="argent">Tableau Argent</option></select>
+    <select id="finalePhase"><option value="or">Tableau Mario</option><option value="argent">Tableau Luigi</option></select>
     <label><input type="checkbox" id="finaleIsPodium" style="width:auto; display:inline-block;"> Marquer comme manche décisive (affiche le podium)</label>
     <label>Joueurs concernés</label>
     <div class="checklist">
@@ -485,7 +507,6 @@ function attachHandlers(){
       pin,
       groupSize: parseInt(document.getElementById('cfgGroupSize').value)||4,
       tours: parseInt(document.getElementById('cfgTours').value)||3,
-      postes: parseInt(document.getElementById('cfgPostes').value)||2,
       pointsTable: document.getElementById('cfgPoints').value.split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x)),
       qualifiedOr: parseInt(document.getElementById('cfgOr').value)||20
     };
@@ -644,6 +665,7 @@ async function init(){
     if(!unlocked){ // ne pas perturber la saisie admin
       await loadData();
       render();
+      updateSyncIndicator();
     }
   }, 8000);
 }
