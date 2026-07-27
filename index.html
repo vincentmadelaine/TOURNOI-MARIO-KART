@@ -111,11 +111,12 @@
   .posrow{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-top:1px solid var(--line);}
   .posrow:first-of-type{border-top:none;}
   .posrow select{width:90px;}
-  .posrow-vert{ flex-direction:column; align-items:stretch; gap:8px; padding:10px 0; }
-  .posBtnGroup{ display:flex; gap:6px; }
+  .posrow-vert{ gap:8px; }
+  .posrow-vert span:first-child{ flex:0 0 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:38%; }
+  .posBtnGroup{ display:flex; gap:4px; flex:0 0 auto; }
   .posBtn{
-    flex:1; min-height:44px; border-radius:9px; border:1px solid var(--line); background:var(--bg);
-    color:var(--text); font-weight:800; font-size:14px; cursor:pointer;
+    width:34px; height:34px; padding:0; border-radius:7px; border:1px solid var(--line); background:var(--bg);
+    color:var(--text); font-weight:800; font-size:11px; cursor:pointer;
   }
   .posBtn.active{ background:var(--yellow); color:#14161c; border-color:var(--yellow); }
 
@@ -246,7 +247,7 @@
     <button class="lockbtn" id="followBtn">👁️ Suivre</button>
     <button class="lockbtn" id="statsBtn">📊 Stats</button>
     <button class="lockbtn" id="shareBtn" title="Partager">🔗</button>
-    <button class="lockbtn" id="projectionBtn" style="display:none;">📽️ Projection</button>
+    <button class="lockbtn" id="projectionBtn" title="Projection" style="display:none;">📽️</button>
     <button class="lockbtn" id="lockBtn" title="Admin">🔒</button>
   </div>
   <h1><span class="fx-red">Tournoi</span> <span>Mario Kart</span></h1>
@@ -471,6 +472,11 @@ function refreshPlayersUI(){
   if(count) count.textContent = data.players.length;
   const gen = document.getElementById('genBtn');
   if(gen) gen.disabled = !data.config || data.players.length < 2;
+  const cfgOrAutoHidden = document.getElementById('cfgOrAuto');
+  const cfgOrInput = document.getElementById('cfgOr');
+  if(cfgOrAutoHidden && cfgOrInput && cfgOrAutoHidden.value==='true'){
+    cfgOrInput.value = Math.ceil((data.players.length||0)/2) || 1;
+  }
   const undoBtn = document.getElementById('undoPlayersBtn');
   if(undoBtn) undoBtn.disabled = undoStack.length===0;
   const redoBtn = document.getElementById('redoPlayersBtn');
@@ -927,6 +933,8 @@ function viewFinales(){
 // ---------- Vue Réglages (admin) ----------
 function viewReglages(){
   const cfg = data.config || { pin:'', groupSize:4, tours:3, pointsTable:[5,3,2,1], qualifiedOr:20 };
+  const qualifiedOrAuto = cfg.qualifiedOrAuto !== undefined ? cfg.qualifiedOrAuto : !data.config;
+  const autoValue = Math.ceil((data.players.length||0)/2) || 1;
   return `<div class="card">
     <h2>Configuration du tournoi</h2>
     <label>Code admin (PIN)</label>
@@ -940,8 +948,12 @@ function viewReglages(){
     <input type="number" id="cfgTours" value="${cfg.tours}" min="1" max="10">
     <label>Barème de points (1er, 2e, 3e, 4e…) séparés par virgules</label>
     <input type="text" id="cfgPoints" value="${cfg.pointsTable.join(',')}">
-    <label>Nombre de qualifiés en Tableau Mario</label>
-    <input type="number" id="cfgOr" value="${cfg.qualifiedOr}" min="1">
+    <label>Nombre de qualifiés en Tableau Mario ${qualifiedOrAuto ? '<span style="color:var(--text-dim); font-weight:400; text-transform:none;">(auto — moitié des joueurs)</span>' : ''}</label>
+    <div class="row" style="align-items:flex-start;">
+      <input type="number" id="cfgOr" value="${qualifiedOrAuto ? autoValue : cfg.qualifiedOr}" min="1" ${qualifiedOrAuto?'disabled':''}>
+      <button type="button" class="secondary" id="cfgOrToggle" style="margin-top:0; flex:0 0 auto;">${qualifiedOrAuto ? '✏️ Modifier' : '🔄 Auto'}</button>
+    </div>
+    <input type="hidden" id="cfgOrAuto" value="${qualifiedOrAuto}">
     <button class="primary" id="saveCfgBtn">Enregistrer la configuration</button>
   </div>
 
@@ -961,6 +973,7 @@ function viewReglages(){
     <div id="playersChipsWrap" style="margin-top:12px;">
       ${playersChipsHtml()}
     </div>
+    <button class="danger" id="deleteAllPlayersBtn" style="margin-top:10px;">🗑️ Supprimer tous les joueurs</button>
   </div>
 
   <div class="card">
@@ -977,6 +990,12 @@ function viewReglages(){
       ${data.manches.filter(m=>m.phase==='qualif').length ? 'Attention : régénérer effacera les manches et scores actuels.' : ''}
     </p>
     <button class="primary" id="genBtn" ${!data.config || data.players.length < 2 ? 'disabled' : ''}>Générer / régénérer les manches</button>
+  </div>
+
+  <div class="card" style="border-color:var(--red);">
+    <h2 style="color:var(--red);">⚠️ Zone de danger</h2>
+    <p style="font-size:12.5px; color:var(--text-dim); margin-bottom:10px;">Efface définitivement toutes les données du tournoi : joueurs, manches, scores, configuration. Irréversible.</p>
+    <button class="danger" id="fullResetBtn" style="border-width:2px;">🗑️ Réinitialisation totale</button>
   </div>`;
 }
 
@@ -1004,7 +1023,11 @@ function scoresResultsHtml(){
 function viewScores(){
   if(!data.manches.length) return `<div class="card"><div class="empty">Aucune manche à noter. Génère-les d'abord dans Réglages.</div></div>`;
   return `<div class="card">
-    <div id="scoresElapsedTimer" style="font-size:12.5px; color:var(--text-dim); margin-bottom:10px; font-weight:700;">⏱️ …</div>
+    <div class="row" style="align-items:center;">
+      <div id="scoresElapsedTimer" style="font-size:12.5px; color:var(--text-dim); font-weight:700;">⏱️ …</div>
+      <button type="button" class="secondary" id="timerEditBtn" style="margin-top:0; flex:0 0 auto; padding:6px 10px; font-size:11px;">✏️ Modifier</button>
+      <button type="button" class="secondary" id="timerResetBtn" style="margin-top:0; flex:0 0 auto; padding:6px 10px; font-size:11px;">🔄 Réinitialiser</button>
+    </div>
     <div class="search-wrap">
       <input class="searchbox" type="text" id="searchScoresInput" placeholder="Rechercher un joueur ou un groupe…" value="${searchScores}">
       <button class="search-clear" type="button">✕</button>
@@ -1032,7 +1055,7 @@ function renderMancheEditor(m){
         </div>
       </div>`).join('')}
     <button class="secondary saveMancheBtn" data-manche="${m.id}">Enregistrer les résultats</button>
-    <button class="secondary toggleLiveBtn" data-manche="${m.id}" style="margin-left:8px; ${m.live?'border-color:var(--red); color:var(--red);':''}">${m.live?'Retirer "en direct"':'🔴 Marquer en direct'}</button>
+    ${mancheComplete(m) ? '' : `<button class="secondary toggleLiveBtn" data-manche="${m.id}" style="margin-left:8px; ${m.live?'border-color:var(--red); color:var(--red);':''}">${m.live?'Retirer "en direct"':'🔴 Marquer en direct'}</button>`}
     <button class="danger delMancheBtn" data-manche="${m.id}" style="margin-left:8px;">Supprimer</button>
   </div>`;
 }
@@ -1064,6 +1087,28 @@ function updateScoresTimer(){
     : '⏱️ Le tournoi n\'a pas encore démarré';
 }
 function attachHandlers(){
+  const timerResetBtn = document.getElementById('timerResetBtn');
+  if(timerResetBtn) timerResetBtn.onclick = async ()=>{
+    if(!confirm('Redémarrer le chrono à maintenant ?')) return;
+    data.startedAt = Date.now();
+    updateScoresTimer();
+    await saveData();
+  };
+  const timerEditBtn = document.getElementById('timerEditBtn');
+  if(timerEditBtn) timerEditBtn.onclick = async ()=>{
+    const current = data.startedAt ? new Date(data.startedAt) : new Date();
+    const pad = n=>String(n).padStart(2,'0');
+    const defaultVal = `${pad(current.getHours())}:${pad(current.getMinutes())}`;
+    const input = prompt("Heure de début du tournoi (aujourd'hui), format HH:MM :", defaultVal);
+    if(!input) return;
+    const match = input.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if(!match){ alert('Format invalide. Utilise HH:MM, ex : 18:30'); return; }
+    const d = data.startedAt ? new Date(data.startedAt) : new Date();
+    d.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
+    data.startedAt = d.getTime();
+    updateScoresTimer();
+    await saveData();
+  };
   const myResultsBtn = document.getElementById('myResultsBtn');
   if(myResultsBtn) myResultsBtn.onclick = ()=>{
     selectedBilanPlayerId = followedPlayerId;
@@ -1159,16 +1204,29 @@ function attachHandlers(){
     cfgPinToggle.textContent = showing ? '👁️' : '🙈';
   };
 
+  const cfgOrToggle = document.getElementById('cfgOrToggle');
+  if(cfgOrToggle) cfgOrToggle.onclick = ()=>{
+    const hidden = document.getElementById('cfgOrAuto');
+    const input = document.getElementById('cfgOr');
+    const nowAuto = hidden.value !== 'true';
+    hidden.value = nowAuto;
+    input.disabled = nowAuto;
+    if(nowAuto) input.value = Math.ceil((data.players.length||0)/2) || 1;
+    cfgOrToggle.textContent = nowAuto ? '✏️ Modifier' : '🔄 Auto';
+  };
+
   const saveCfg = document.getElementById('saveCfgBtn');
   if(saveCfg) saveCfg.onclick = async ()=>{
     const pin = document.getElementById('cfgPin').value.trim();
     if(!pin){ alert('Merci de définir un code admin.'); return; }
+    const qualifiedOrAuto = document.getElementById('cfgOrAuto').value === 'true';
     data.config = {
       pin,
       groupSize: parseInt(document.getElementById('cfgGroupSize').value)||4,
       tours: parseInt(document.getElementById('cfgTours').value)||3,
       pointsTable: document.getElementById('cfgPoints').value.split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x)),
-      qualifiedOr: parseInt(document.getElementById('cfgOr').value)||20
+      qualifiedOr: qualifiedOrAuto ? (Math.ceil((data.players.length||0)/2)||1) : (parseInt(document.getElementById('cfgOr').value)||1),
+      qualifiedOrAuto
     };
     await saveData();
     render();
@@ -1204,6 +1262,31 @@ function attachHandlers(){
   if(undoBtn) undoBtn.onclick = undoPlayers;
   const redoBtn = document.getElementById('redoPlayersBtn');
   if(redoBtn) redoBtn.onclick = redoPlayers;
+
+  const deleteAllPlayersBtn = document.getElementById('deleteAllPlayersBtn');
+  if(deleteAllPlayersBtn) deleteAllPlayersBtn.onclick = async ()=>{
+    if(!data.players.length) return;
+    if(!confirm(`Supprimer les ${data.players.length} joueurs de la liste ? (annulable avec "Annuler")`)) return;
+    snapshotPlayers();
+    data.players = [];
+    refreshPlayersUI();
+    await saveData();
+  };
+
+  const fullResetBtn = document.getElementById('fullResetBtn');
+  if(fullResetBtn) fullResetBtn.onclick = async ()=>{
+    const typed = prompt('Cette action efface DÉFINITIVEMENT tout le tournoi (joueurs, manches, scores, configuration).\nTape SUPPRIMER en majuscules pour confirmer :');
+    if(typed !== 'SUPPRIMER') return;
+    data = { config:null, players:[], manches:[], status:'setup' };
+    unlocked = false;
+    followedPlayerId = null;
+    try{ localStorage.removeItem('followedPlayerId'); }catch(e){}
+    currentTab = 'classement';
+    await saveData();
+    updateLockBtn();
+    render();
+    alert('Le tournoi a été réinitialisé.');
+  };
 
   refreshPlayersUI();
 
@@ -1323,6 +1406,7 @@ function bindScoreEditors(){
     data.actionLog.unshift({ label: m.label, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
     data.actionLog = data.actionLog.slice(0,5);
     if(m.isFinale && mancheComplete(m) && !data.finishedAt) data.finishedAt = Date.now();
+    if(m.live && mancheComplete(m)) m.live = false;
     await saveData();
     renderContent();
   });
@@ -1638,13 +1722,13 @@ document.getElementById('projectionBtn').onclick = ()=>{
   document.body.classList.toggle('projection', projectionMode);
   const btn = document.getElementById('projectionBtn');
   if(projectionMode){
-    btn.textContent = '✕ Quitter';
+    btn.textContent = '✕';
     document.documentElement.requestFullscreen?.().catch(()=>{});
     currentTab = 'classement';
     render();
     startProjectionTicker();
   } else {
-    btn.textContent = '📽️ Projection';
+    btn.textContent = '📽️';
     if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
     clearInterval(projectionTickInterval);
   }
@@ -1653,7 +1737,7 @@ document.addEventListener('fullscreenchange', ()=>{
   if(!document.fullscreenElement && projectionMode){
     projectionMode = false;
     document.body.classList.remove('projection');
-    document.getElementById('projectionBtn').textContent = '📽️ Projection';
+    document.getElementById('projectionBtn').textContent = '📽️';
     clearInterval(projectionTickInterval);
   }
 });
