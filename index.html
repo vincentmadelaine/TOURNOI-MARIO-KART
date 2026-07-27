@@ -213,6 +213,15 @@
   .projection-qr-corner img{ display:block; width:100px; height:100px; }
   body.projection .projection-qr-corner{ display:block; }
 
+  .projection-controls{ display:none; position:fixed; top:14px; right:14px; z-index:45; gap:10px; }
+  body.projection .projection-controls{ display:flex; }
+  .projection-controls button{
+    width:56px; height:56px; border-radius:50%; border:2px solid var(--yellow); background:var(--bg-card);
+    color:var(--text); font-size:24px; cursor:pointer; box-shadow:0 6px 20px #0008; display:flex;
+    align-items:center; justify-content:center;
+  }
+  .projection-controls button:active{ transform:scale(.94); }
+
   tr.followed td{ background:rgba(255,201,60,.12); }
   tr.followed td:first-child{ border-left:3px solid var(--yellow); }
   .manche.followed{ outline:2px solid var(--yellow); outline-offset:2px; }
@@ -257,6 +266,10 @@
 <div class="projection-timerbar"><div class="fill" id="projectionTimerFill"></div></div>
 <div class="projection-status" id="projectionStatus"><span id="projectionStatusLabel"></span></div>
 <div class="projection-qr-corner"><img id="projectionQrCornerImg" alt="QR code"></div>
+<div class="projection-controls" id="projectionControls">
+  <button id="projSkipBtn" title="Écran suivant">⏭️</button>
+  <button id="projPauseBtn" title="Pause / Lecture">⏸️</button>
+</div>
 
 <nav id="tabs"></nav>
 <main id="content"></main>
@@ -833,8 +846,7 @@ function viewClassement(){
 function mancheCardHtml(m, extraClass){
   const hasFollowed = m.players.includes(followedPlayerId);
   return `<div class="manche ${m.live?'live':''} ${hasFollowed?'followed':''} ${extraClass||''}">
-        <div class="label">${m.label} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
-        <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':(m.live?'🔴 En cours — c\'est maintenant !':'À venir')}</div>
+        ${m.live ? '<div class="label"><span class="live-badge"><span class="live-dot"></span>En direct</span></div>' : ''}
         <div class="players">${m.players.map(pid=>{
           const inner = `${playerEmoji(pid)}${playerName(pid)}`;
           const wrapped = `<span class="player-link ${playerHasResults(pid)?'':'no-results'}" data-stats-player="${pid}">${inner}</span>`;
@@ -846,7 +858,6 @@ function mancheResultCardHtml(m){
   const hasFollowed = m.players.includes(followedPlayerId);
   const ranked = Object.entries(m.results).sort((a,b)=>a[1]-b[1]);
   return `<div class="manche ${hasFollowed?'followed':''}">
-        <div class="label">${m.label} <span class="status done" style="display:inline; font-size:11px;">✓ Terminée</span></div>
         <div class="players">
           ${ranked.map(([pid,pos])=>{
             const inner = `${pos}${pos===1?'er':'e'} ${playerEmoji(pid)}${playerName(pid)}`;
@@ -865,8 +876,6 @@ function planningResultsHtml(){
   const completedList = notLive.filter(mancheComplete);
   const pendingNotLive = notLive.filter(m=>!mancheComplete(m));
   const upcoming = pendingNotLive.slice(0,2);
-  const upcomingIds = new Set(upcoming.map(m=>m.id));
-  const restList = pendingNotLive.filter(m=>!upcomingIds.has(m.id));
 
   function renderGroup(title, list, extraClass){
     const filtered = list.filter(matches);
@@ -886,7 +895,6 @@ function planningResultsHtml(){
   }
   const html = renderGroup('🔴 En direct', liveList)
     + renderGroup('⏭️ À venir bientôt', upcoming, 'upcoming')
-    + renderGroup('📋 Toutes les manches', restList)
     + renderArchived(completedList);
   return html || `<div class="empty">Aucun résultat pour ce joueur.</div>`;
 }
@@ -1514,7 +1522,7 @@ function updateLockBtn(){
   if(!unlocked && projectionMode){
     projectionMode = false;
     document.body.classList.remove('projection');
-    if(pBtn) pBtn.textContent = '📽️ Projection';
+    if(pBtn) pBtn.textContent = '📽️';
     clearInterval(projectionTickInterval);
     if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
   }
@@ -1743,14 +1751,24 @@ function updateProjectionTimerUI(){
   if(label){
     const remaining = Math.max(0, Math.ceil((PROJECTION_DURATION-projectionElapsed)/1000));
     const nextTab = currentTab==='classement' ? 'Planning' : 'Classement';
-    label.textContent = `${tabLabel(currentTab)}  ·  ${nextTab} dans ${remaining}s`;
+    label.textContent = projPaused
+      ? `${tabLabel(currentTab)}  ·  ⏸️ En pause`
+      : `${tabLabel(currentTab)}  ·  ${nextTab} dans ${remaining}s`;
   }
+}
+let projPaused = false;
+function updateProjectionPauseBtn(){
+  const btn = document.getElementById('projPauseBtn');
+  if(btn) btn.textContent = projPaused ? '▶️' : '⏸️';
 }
 function startProjectionTicker(){
   clearInterval(projectionTickInterval);
   projectionElapsed = 0;
+  projPaused = false;
+  updateProjectionPauseBtn();
   updateProjectionTimerUI();
   projectionTickInterval = setInterval(()=>{
+    if(projPaused) return;
     projectionElapsed += 200;
     if(projectionElapsed >= PROJECTION_DURATION){
       projectionElapsed = 0;
@@ -1760,28 +1778,43 @@ function startProjectionTicker(){
     updateProjectionTimerUI();
   }, 200);
 }
+document.getElementById('projSkipBtn').onclick = ()=>{
+  currentTab = currentTab==='classement' ? 'planning' : 'classement';
+  projectionElapsed = 0;
+  render();
+  updateProjectionTimerUI();
+};
+document.getElementById('projPauseBtn').onclick = ()=>{
+  projPaused = !projPaused;
+  updateProjectionPauseBtn();
+  updateProjectionTimerUI();
+};
+function exitProjectionAndLock(){
+  projectionMode = false;
+  document.body.classList.remove('projection');
+  if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+  clearInterval(projectionTickInterval);
+  unlocked = false;
+  currentTab = 'classement';
+  updateLockBtn();
+  render();
+}
 document.getElementById('projectionBtn').onclick = ()=>{
-  projectionMode = !projectionMode;
-  document.body.classList.toggle('projection', projectionMode);
-  const btn = document.getElementById('projectionBtn');
-  if(projectionMode){
-    btn.textContent = '✕';
+  if(!projectionMode){
+    projectionMode = true;
+    document.body.classList.add('projection');
+    document.getElementById('projectionBtn').textContent = '✕';
     document.documentElement.requestFullscreen?.().catch(()=>{});
     currentTab = 'classement';
     render();
     startProjectionTicker();
-  } else {
-    btn.textContent = '📽️';
-    if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
-    clearInterval(projectionTickInterval);
+    return;
   }
+  if(confirm('Quitter la projection ?')) exitProjectionAndLock();
 };
 document.addEventListener('fullscreenchange', ()=>{
   if(!document.fullscreenElement && projectionMode){
-    projectionMode = false;
-    document.body.classList.remove('projection');
-    document.getElementById('projectionBtn').textContent = '📽️';
-    clearInterval(projectionTickInterval);
+    exitProjectionAndLock();
   }
 });
 
