@@ -236,6 +236,7 @@
   .emoji-pick:hover{ border-color:var(--yellow); }
   .chip-emoji{ font-size:14px; cursor:pointer; }
   .player-link{ cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
+  .player-link.no-results{ opacity:.5; text-decoration:none; }
 </style>
 </head>
 <body>
@@ -377,6 +378,7 @@ const EMOJI_LIST = ['😀','😎','🤩','🥳','😺','🐶','🦊','🐼','�
 function uid(p){ return 'j'+p; }
 function playerName(id){ const p = data.players.find(x=>x.id===id); return p ? p.name : '?'; }
 function playerEmoji(id){ const p = data.players.find(x=>x.id===id); return p && p.emoji ? p.emoji+' ' : ''; }
+function playerHasResults(id){ return data.manches.some(m=>m.phase==='qualif' && m.results[id]!==undefined); }
 function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function pairKey(a,b){ return [a,b].sort().join('|'); }
 
@@ -415,12 +417,21 @@ function generateSchedule(){
   return manches;
 }
 function openEmojiPicker(current, onPick){
+  let list = EMOJI_LIST;
+  let hint = '';
+  if(data.config && data.config.hideUsedEmojis){
+    const used = new Set(data.players.map(p=>p.emoji).filter(Boolean));
+    const filtered = EMOJI_LIST.filter(e => e===current || !used.has(e));
+    if(filtered.length){ list = filtered; }
+    else { hint = '<p style="font-size:11.5px; color:var(--text-dim); margin-bottom:6px;">Tous les emojis sont déjà pris — affichage de la liste complète.</p>'; }
+  }
   document.getElementById('modalRoot').innerHTML = `
     <div class="modal-bg" id="emojiModalBg">
       <div class="modal" style="max-width:380px;">
         <h2 style="margin-bottom:6px;">Choisis un emoji</h2>
+        ${hint}
         <div class="emoji-grid">
-          ${EMOJI_LIST.map(e=>`<button class="emoji-pick" type="button" data-emoji="${e}">${e}</button>`).join('')}
+          ${list.map(e=>`<button class="emoji-pick" type="button" data-emoji="${e}">${e}</button>`).join('')}
         </div>
         <button class="secondary" id="emojiSkipBtn" style="width:100%; margin-top:12px;">Sans emoji</button>
       </div>
@@ -672,8 +683,10 @@ function bilanPlayerHtml(){
       const qualifManches = data.manches.filter(m=>m.phase==='qualif' && m.results[p.id]!==undefined);
       html += `<div class="manche" style="margin-top:12px;">
         <div class="label">${p.emoji?p.emoji+' ':''}${p.name}</div>
-        <div class="players">Rang qualifs : ${rank>0?rank:'—'} · ${total} pts · ${qualifManches.length} course(s) jouée(s)</div>
-        ${qualifManches.map(m=>`<div class="historyItem">${m.label} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('')}
+        ${qualifManches.length
+          ? `<div class="players">Rang qualifs : ${rank>0?rank:'—'} · ${total} pts · ${qualifManches.length} course(s) jouée(s)</div>
+             ${qualifManches.map(m=>`<div class="historyItem">${m.label} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('')}`
+          : `<p style="font-size:12.5px; color:var(--text-dim); margin-top:6px;">Aucun résultat enregistré pour l'instant — revenez une fois que ce joueur aura participé à une course.</p>`}
         <button class="secondary" id="copyPlayerLinkBtn" data-player-link="${p.id}">🔗 Copier le lien de sa fiche</button>
       </div>`;
     }
@@ -796,7 +809,7 @@ function classementRowsHtml(){
     ${filtered.map(r=>{
       const rank = rows.findIndex(x=>x.id===r.id);
       const isFollowed = r.id===followedPlayerId;
-      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link" data-stats-player="${r.id}">${isFollowed?'👁️ ':''}${playerEmoji(r.id)}${r.name}</span></td><td class="pts">${r.pts}</td></tr>`;
+      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link ${playerHasResults(r.id)?'':'no-results'}" data-stats-player="${r.id}">${isFollowed?'👁️ ':''}${playerEmoji(r.id)}${r.name}</span></td><td class="pts">${r.pts}</td></tr>`;
     }).join('')}
     </tbody></table>`;
 }
@@ -824,7 +837,7 @@ function mancheCardHtml(m, extraClass){
         <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':(m.live?'🔴 En cours — c\'est maintenant !':'À venir')}</div>
         <div class="players">${m.players.map(pid=>{
           const inner = `${playerEmoji(pid)}${playerName(pid)}`;
-          const wrapped = `<span class="player-link" data-stats-player="${pid}">${inner}</span>`;
+          const wrapped = `<span class="player-link ${playerHasResults(pid)?'':'no-results'}" data-stats-player="${pid}">${inner}</span>`;
           return pid===followedPlayerId ? `<span class="followed-name">👁️ ${wrapped}</span>` : wrapped;
         }).join(' · ')}</div>
       </div>`;
@@ -954,6 +967,11 @@ function viewReglages(){
       <button type="button" class="secondary" id="cfgOrToggle" style="margin-top:0; flex:0 0 auto;">${qualifiedOrAuto ? '✏️ Modifier' : '🔄 Auto'}</button>
     </div>
     <input type="hidden" id="cfgOrAuto" value="${qualifiedOrAuto}">
+    <label style="display:flex; align-items:center; gap:8px; margin-top:16px; text-transform:none; font-weight:400; color:var(--text); cursor:pointer;">
+      <input type="checkbox" id="cfgHideUsedEmojis" style="width:auto;" ${cfg.hideUsedEmojis?'checked':''}>
+      Masquer les emojis déjà utilisés par un autre joueur
+    </label>
+    <small class="hint" style="margin-top:0;">Évite d'avoir deux fois le même emoji dans la liste.</small>
     <button class="primary" id="saveCfgBtn">Enregistrer la configuration</button>
   </div>
 
@@ -1215,6 +1233,17 @@ function attachHandlers(){
     cfgOrToggle.textContent = nowAuto ? '✏️ Modifier' : '🔄 Auto';
   };
 
+  const cfgHideUsedEmojis = document.getElementById('cfgHideUsedEmojis');
+  if(cfgHideUsedEmojis) cfgHideUsedEmojis.onchange = async ()=>{
+    if(!data.config){
+      alert("Enregistre d'abord la configuration (code admin) avant d'activer cette option.");
+      cfgHideUsedEmojis.checked = false;
+      return;
+    }
+    data.config.hideUsedEmojis = cfgHideUsedEmojis.checked;
+    await saveData();
+  };
+
   const saveCfg = document.getElementById('saveCfgBtn');
   if(saveCfg) saveCfg.onclick = async ()=>{
     const pin = document.getElementById('cfgPin').value.trim();
@@ -1226,7 +1255,8 @@ function attachHandlers(){
       tours: parseInt(document.getElementById('cfgTours').value)||3,
       pointsTable: document.getElementById('cfgPoints').value.split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x)),
       qualifiedOr: qualifiedOrAuto ? (Math.ceil((data.players.length||0)/2)||1) : (parseInt(document.getElementById('cfgOr').value)||1),
-      qualifiedOrAuto
+      qualifiedOrAuto,
+      hideUsedEmojis: document.getElementById('cfgHideUsedEmojis')?.checked || false
     };
     await saveData();
     render();
@@ -1583,6 +1613,19 @@ function checkFollowedLiveAlert(){
 function showPlayerStatsModal(playerId){
   const p = data.players.find(x=>x.id===playerId);
   if(!p) return;
+  if(!playerHasResults(p.id)){
+    document.getElementById('modalRoot').innerHTML = `
+      <div class="modal-bg" id="statsModalBg">
+        <div class="modal" style="text-align:center;">
+          <h2 style="margin-bottom:10px;">${p.emoji?p.emoji+' ':''}${p.name}</h2>
+          <p style="font-size:13px; color:var(--text-dim);">Ce joueur n'a pas encore de résultat enregistré.<br>Reviens une fois qu'il aura joué au moins une course.</p>
+          <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:16px;">Fermer</button>
+        </div>
+      </div>`;
+    document.getElementById('statsCloseBtn').onclick = ()=> document.getElementById('modalRoot').innerHTML='';
+    document.getElementById('statsModalBg').onclick = (e)=>{ if(e.target.id==='statsModalBg') document.getElementById('modalRoot').innerHTML=''; };
+    return;
+  }
   const rows = classementGeneral();
   const rank = rows.findIndex(r=>r.id===p.id)+1;
   const total = rows.find(r=>r.id===p.id)?.pts || 0;
