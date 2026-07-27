@@ -767,15 +767,19 @@ function viewBilan(){
     html += `<div class="card"><div class="empty">Le podium final n'est pas encore enregistré.</div></div>`;
   }
 
-  html += `<div class="card">
-    <h2>Fiche joueur</h2>
-    ${followedPlayerId ? `<button class="secondary" id="myResultsBtn" style="width:100%; margin-top:0;">👁️ Voir les résultats de ${playerEmoji(followedPlayerId)}${playerName(followedPlayerId)}</button>` : ''}
-    <div class="search-wrap" style="margin-top:${followedPlayerId?'10px':'0'};">
-      <input class="searchbox" type="text" id="searchBilanInput" placeholder="Rechercher un joueur…" value="${searchBilan}">
-      <button class="search-clear" type="button">✕</button>
-    </div>
-    <div id="bilanPlayerResult">${bilanPlayerHtml()}</div>
-  </div>`;
+  if(tournamentFinished()){
+    html += `<div class="card">
+      <h2>Fiche joueur</h2>
+      ${followedPlayerId ? `<button class="secondary" id="myResultsBtn" style="width:100%; margin-top:0;">👁️ Voir les résultats de ${playerEmoji(followedPlayerId)}${playerName(followedPlayerId)}</button>` : ''}
+      <div class="search-wrap" style="margin-top:${followedPlayerId?'10px':'0'};">
+        <input class="searchbox" type="text" id="searchBilanInput" placeholder="Rechercher un joueur…" value="${searchBilan}">
+        <button class="search-clear" type="button">✕</button>
+      </div>
+      <div id="bilanPlayerResult">${bilanPlayerHtml()}</div>
+    </div>`;
+  } else {
+    html += `<div class="card"><div class="empty">La fiche joueur sera disponible une fois le tournoi terminé (podium final enregistré).</div></div>`;
+  }
 
   return html;
 }
@@ -786,9 +790,11 @@ function render(){
   renderContent();
 }
 function renderTabs(){
-  const tabs = [['classement','Classement'],['planning','Planning'],['finales','Finales']];
+  const tabs = [['classement','Classement'],['planning','Planning']];
+  if(unlocked || qualifsComplete()) tabs.push(['finales','Finales']);
   tabs.push(['bilan','Bilan']);
   if(unlocked) tabs.push(['reglages','Réglages'], ['scores','Scores']);
+  if(!unlocked && currentTab==='finales' && !qualifsComplete()) currentTab = 'classement';
   const nav = document.getElementById('tabs');
   nav.innerHTML = tabs.map(([id,label]) =>
     `<button data-tab="${id}" class="${currentTab===id?'active':''}">${label}</button>`
