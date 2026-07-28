@@ -421,7 +421,15 @@ const EMOJI_LIST = ['😀','😎','🤩','🥳','😺','🐶','🦊','🐼','�
 // ---------- Helpers ----------
 function uid(p){ return 'j'+p; }
 function playerName(id){ const p = data.players.find(x=>x.id===id); return p ? p.name : '?'; }
-function manchLabel(m){ return (m && m.label ? m.label : '').replace(/^Tour\b/, 'Course'); }
+function manchLabel(m){
+  if(!m) return '';
+  if(m.phase==='qualif'){
+    const qm = data.manches.filter(x=>x.phase==='qualif');
+    const idx = qm.findIndex(x=>x.id===m.id);
+    return idx>=0 ? `Course ${idx+1}` : (m.label||'');
+  }
+  return m.label || '';
+}
 function playerEmoji(id){ const p = data.players.find(x=>x.id===id); return p && p.emoji ? p.emoji+' ' : ''; }
 function playerHasResults(id){ return data.manches.some(m=>m.phase==='qualif' && m.results[id]!==undefined); }
 function playerAvatarRow(id, size){
