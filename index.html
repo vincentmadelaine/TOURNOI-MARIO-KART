@@ -421,6 +421,7 @@ const EMOJI_LIST = ['😀','😎','🤩','🥳','😺','🐶','🦊','🐼','�
 // ---------- Helpers ----------
 function uid(p){ return 'j'+p; }
 function playerName(id){ const p = data.players.find(x=>x.id===id); return p ? p.name : '?'; }
+function manchLabel(m){ return (m && m.label ? m.label : '').replace(/^Tour\b/, 'Course'); }
 function playerEmoji(id){ const p = data.players.find(x=>x.id===id); return p && p.emoji ? p.emoji+' ' : ''; }
 function playerHasResults(id){ return data.manches.some(m=>m.phase==='qualif' && m.results[id]!==undefined); }
 function playerAvatarRow(id, size){
@@ -707,7 +708,7 @@ function render(){
 function renderTabs(){
   const tabs = [['planning','Planning'],['classement','Classement']];
   if(unlocked || qualifsComplete()) tabs.push(['finales','Finales']);
-  if(unlocked) tabs.push(['reglages','Réglages'], ['scores','Scores']);
+  if(unlocked) tabs.push(['scores','Scores'], ['reglages','Réglages']);
   if(!unlocked && currentTab==='finales' && !qualifsComplete()) currentTab = 'classement';
   const nav = document.getElementById('tabs');
   nav.innerHTML = tabs.map(([id,label]) =>
@@ -746,7 +747,7 @@ function classementPodiumHtml(rows){
         <div class="place p${i+1} ${isFollowed?'followed':''}">
           <div style="font-size:22px;">${medals[i]}</div>
           <div class="avatar-badge" style="width:40px; height:40px; font-size:22px; margin:6px auto;">${emoji}</div>
-          <div style="font-weight:800; font-size:12.5px;">${isFollowed?'👁️ ':''}${r.name}</div>
+          <div style="font-weight:800; font-size:12.5px;">${r.name}</div>
           <div class="pts" style="font-size:13px; margin-top:2px;">${r.pts} pts</div>
         </div>
       </span>`;
@@ -767,7 +768,7 @@ function classementRowsHtml(){
     ${filtered.map(r=>{
       const rank = rows.findIndex(x=>x.id===r.id);
       const isFollowed = r.id===followedPlayerId;
-      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link" data-stats-player="${r.id}">${isFollowed?'👁️ ':''}${playerAvatarRow(r.id)}</span></td><td class="pts">${r.pts}</td></tr>`;
+      return `<tr class="${rank===0?'rank1':''} ${isFollowed?'followed':''}"><td>${rank+1}</td><td><span class="player-link" data-stats-player="${r.id}">${playerAvatarRow(r.id)}</span></td><td class="pts">${r.pts}</td></tr>`;
     }).join('')}
     </tbody></table>`;
 }
@@ -791,10 +792,10 @@ function viewClassement(){
 function mancheCardHtml(m, extraClass){
   const hasFollowed = m.players.includes(followedPlayerId);
   return `<div class="manche ${m.live?'live':''} ${hasFollowed?'followed':''} ${extraClass||''}">
-        <div class="label">${m.label} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
+        <div class="label">${manchLabel(m)} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
         <div class="players players-grid">${m.players.map(pid=>{
           const wrapped = `<span class="player-link" data-stats-player="${pid}">${playerAvatarRow(pid)}</span>`;
-          return pid===followedPlayerId ? `<span class="followed-name">👁️ ${wrapped}</span>` : wrapped;
+          return pid===followedPlayerId ? `<span class="followed-name">${wrapped}</span>` : wrapped;
         }).join('')}</div>
       </div>`;
 }
@@ -802,11 +803,11 @@ function mancheResultCardHtml(m){
   const hasFollowed = m.players.includes(followedPlayerId);
   const ranked = Object.entries(m.results).sort((a,b)=>a[1]-b[1]);
   return `<div class="manche ${hasFollowed?'followed':''}">
-        <div class="label">${m.label}</div>
+        <div class="label">${manchLabel(m)}</div>
         <div class="players players-grid">
           ${ranked.map(([pid,pos])=>{
             const wrapped = `<span class="player-link" data-stats-player="${pid}">${pos}${pos===1?'er':'e'} ${playerAvatarRow(pid)}</span>`;
-            return pid===followedPlayerId ? `<span class="followed-name">👁️ ${wrapped}</span>` : wrapped;
+            return pid===followedPlayerId ? `<span class="followed-name">${wrapped}</span>` : wrapped;
           }).join('')}
         </div>
       </div>`;
@@ -897,7 +898,7 @@ function viewFinales(){
   let html = '';
   if(podiumManche){
     const ranked = Object.entries(podiumManche.results).sort((a,b)=>a[1]-b[1]);
-    html += `<div class="card"><h2>🏆 Podium — ${podiumManche.label}</h2>
+    html += `<div class="card"><h2>🏆 Podium — ${manchLabel(podiumManche)}</h2>
       <div class="podium">
         ${ranked.slice(0,3).map(([pid,pos],i)=>`
           <div class="place p${i+1}">
@@ -922,7 +923,7 @@ function viewFinales(){
     html += `<div class="card"><h2>Manches finales</h2>
       ${fm.map(m=>`
         <div class="manche">
-          <div class="label">${m.label} <span class="badge ${m.phase}">${m.phase}</span></div>
+          <div class="label">${manchLabel(m)} <span class="badge ${m.phase}">${m.phase}</span></div>
           <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':'À venir'}</div>
           <div class="players">${m.players.map(pid=>playerName(pid)).join(' · ')}</div>
         </div>`).join('')}
@@ -971,13 +972,12 @@ function viewReglages(){
     </div>
     <label>Ajout rapide (un prénom par ligne)</label>
     <textarea id="bulkPlayers" rows="4" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:10px; font-size:13px;" placeholder="Lucas&#10;Emma&#10;Nolan…"></textarea>
-    <button class="secondary" id="bulkAddBtn">Ajouter la liste</button>
-    <div class="undoRedoRow">
-      <button class="secondary" id="undoPlayersBtn" disabled>↩️ Annuler</button>
-      <button class="secondary" id="redoPlayersBtn" disabled>↪️ Rétablir</button>
+    <div class="row" style="align-items:center;">
+      <button class="secondary" id="bulkAddBtn" style="margin-top:0;">Ajouter la liste</button>
+      <button class="secondary" id="undoPlayersBtn" title="Annuler" disabled style="margin-top:0; flex:0 0 auto; padding:8px 12px;">↩️</button>
+      <button class="secondary" id="redoPlayersBtn" title="Rétablir" disabled style="margin-top:0; flex:0 0 auto; padding:8px 12px;">↪️</button>
     </div>
-    <div id="playersChipsWrap" style="margin-top:12px;">
-      ${playersChipsHtml()}
+    <div id="playersChipsWrap" style="margin-top:12px;">      ${playersChipsHtml()}
     </div>
     <button class="danger" id="deleteAllPlayersBtn" style="margin-top:10px;">🗑️ Supprimer tous les joueurs</button>
   </div>
@@ -1055,10 +1055,10 @@ function renderMancheEditor(m){
   const positions = Array.from({length:m.players.length}, (_,i)=>i+1);
   const hasFollowed = m.players.includes(followedPlayerId);
   return `<div class="manche ${m.live?'live':''} ${hasFollowed?'followed':''}">
-    <div class="label">${m.label} ${m.isFinale ? '<span class="badge or">Finale</span>' : ''} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
+    <div class="label">${manchLabel(m)} ${m.isFinale ? '<span class="badge or">Finale</span>' : ''} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
     ${m.players.map(pid=>`
       <div class="posrow posrow-vert ${pid===followedPlayerId?'followed':''}">
-        <span>${pid===followedPlayerId?'👁️ ':''}${playerAvatarRow(pid,22)}</span>
+        <span>${playerAvatarRow(pid,22)}</span>
         <div class="posBtnGroup" data-manche="${m.id}" data-player="${pid}">
           ${positions.map(p=>`<button type="button" class="posBtn ${m.results[pid]===p?'active':''}" data-pos="${p}">${p}${p===1?'er':'e'}</button>`).join('')}
         </div>
@@ -1169,7 +1169,7 @@ function attachHandlers(){
         </h1>
         <div style="color:var(--text-dim); font-size:13px; margin-top:4px;">AS Joliot-Curie — Résultats du tournoi</div>
       </div>
-      ${podium ? `<div class="card"><h2>🏆 Podium final — ${podium.label}</h2>
+      ${podium ? `<div class="card"><h2>🏆 Podium final — ${manchLabel(podium)}</h2>
         <div class="podium">
           ${Object.entries(podium.results).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([pid,pos],i)=>`
             <div class="place p${i+1}">
@@ -1388,7 +1388,7 @@ function attachHandlers(){
       m.players.forEach(pid=>{
         const pos = m.results[pid];
         const pts = (m.phase==='qualif' && pos) ? pointsFor(pos) : '';
-        csv += `"${m.label}",${m.phase},${m.live?'oui':'non'},"${playerName(pid)}",${pos||''},${pts}\n`;
+        csv += `"${manchLabel(m)}",${m.phase},${m.live?'oui':'non'},"${playerName(pid)}",${pos||''},${pts}\n`;
       });
     });
     const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
@@ -1437,7 +1437,7 @@ function bindScoreEditors(){
       else delete m.results[pid];
     });
     if(!data.actionLog) data.actionLog = [];
-    data.actionLog.unshift({ label: m.label, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
+    data.actionLog.unshift({ label: manchLabel(m), time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
     data.actionLog = data.actionLog.slice(0,5);
     if(m.isFinale && mancheComplete(m) && !data.finishedAt) data.finishedAt = Date.now();
     if(m.live && mancheComplete(m)) m.live = false;
@@ -1608,7 +1608,7 @@ function checkFollowedLiveAlert(){
   if(newlyLive.length){
     try{ navigator.vibrate?.([200,80,200]); }catch(e){}
     playAlertSound();
-    showFollowToast(`🔴 C'est parti pour ${playerName(followedPlayerId)} — ${newlyLive[0].label} !`);
+    showFollowToast(`🔴 C'est parti pour ${playerName(followedPlayerId)} — ${manchLabel(newlyLive[0])} !`);
   }
   resetLiveBaseline();
 }
@@ -1649,23 +1649,13 @@ function showPlayerStatsModal(playerId){
           ${avgPos ? `<tr><td>Place moyenne</td><td class="pts" style="text-align:right;">${avgPos}</td></tr>` : ''}
         </tbody></table>
         <div class="planning-group-title" style="margin-top:16px;">Historique des courses</div>
-        ${qualifManches.length ? qualifManches.map(m=>`<div class="historyItem">${m.label} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('') : '<p style="font-size:12.5px; color:var(--text-dim);">Aucune course jouée pour le moment.</p>'}
-        ${finaleManches.length ? `<div class="planning-group-title" style="margin-top:16px;">Phases finales</div>${finaleManches.map(m=>`<div class="historyItem">${m.label} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place</div>`).join('')}` : ''}
-        <button class="secondary" id="copyPlayerLinkBtn" data-player-link="${p.id}" style="width:100%; margin-top:16px;">🔗 Copier le lien de sa fiche</button>
-        <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:8px;">Fermer</button>
+        ${qualifManches.length ? qualifManches.map(m=>`<div class="historyItem">${manchLabel(m)} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('') : '<p style="font-size:12.5px; color:var(--text-dim);">Aucune course jouée pour le moment.</p>'}
+        ${finaleManches.length ? `<div class="planning-group-title" style="margin-top:16px;">Phases finales</div>${finaleManches.map(m=>`<div class="historyItem">${manchLabel(m)} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place</div>`).join('')}` : ''}
+        <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:16px;">Fermer</button>
       </div>
     </div>`;
   document.getElementById('statsCloseBtn').onclick = ()=> document.getElementById('modalRoot').innerHTML='';
   document.getElementById('statsModalBg').onclick = (e)=>{ if(e.target.id==='statsModalBg') document.getElementById('modalRoot').innerHTML=''; };
-  document.getElementById('copyPlayerLinkBtn').onclick = async ()=>{
-    const url = location.origin + location.pathname + '?joueur=' + encodeURIComponent(p.id);
-    try{
-      await navigator.clipboard.writeText(url);
-      alert('Lien copié !');
-    }catch(e){
-      prompt('Copie ce lien :', url);
-    }
-  };
 }
 document.getElementById('statsBtn').onclick = ()=>{
   if(!followedPlayerId){
