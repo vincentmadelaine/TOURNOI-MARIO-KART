@@ -2046,6 +2046,9 @@ document.addEventListener('click', (e)=>{
     panel.classList.remove('open');
   }
 });
+window.addEventListener('scroll', ()=>{
+  document.getElementById('headerMenuPanel')?.classList.remove('open');
+}, { passive:true });
 
 document.getElementById('followBtn').onclick = ()=>{
   unlockAudio();
