@@ -849,6 +849,17 @@ function viewClassement(){
   if(rows.length===0) return `<div class="card"><div class="empty">Aucun joueur enregistré pour l'instant.</div></div>`;
   const canExport = unlocked || tournamentFinished();
   let html = '';
+  if(tournamentFinished()){
+    const marioWinner = classementTableau('or')[0];
+    const luigiWinner = classementTableau('argent')[0];
+    html += `<div class="card" style="border:2px solid var(--gold); background:linear-gradient(135deg, rgba(212,175,55,.15), transparent);">
+      <h2 style="text-align:center;">🎉 Résultats finaux</h2>
+      <div class="podium" style="margin-top:6px;">
+        ${marioWinner ? `<div class="place p1" style="flex:1;"><div style="font-size:22px;">🏆</div><div class="avatar-badge" style="width:40px; height:40px; font-size:22px; margin:6px auto;">${(data.players.find(x=>x.id===marioWinner.id)?.emoji)||'🎮'}</div><div style="font-weight:800; font-size:12.5px;">${marioWinner.name}</div><div style="font-size:11px; color:var(--text-dim);">Vainqueur Mario</div></div>` : ''}
+        ${luigiWinner ? `<div class="place p1" style="flex:1;"><div style="font-size:22px;">🏆</div><div class="avatar-badge" style="width:40px; height:40px; font-size:22px; margin:6px auto;">${(data.players.find(x=>x.id===luigiWinner.id)?.emoji)||'🎮'}</div><div style="font-weight:800; font-size:12.5px;">${luigiWinner.name}</div><div style="font-size:11px; color:var(--text-dim);">Vainqueur Luigi</div></div>` : ''}
+      </div>
+    </div>`;
+  }
   if(qualifsComplete()){
     html += tableauSectionHtml('🏆 Classement Tableau Mario', classementTableau('or'));
     html += tableauSectionHtml('🍄 Classement Tableau Luigi', classementTableau('argent'));
@@ -970,12 +981,17 @@ function myTurnBannerHtml(){
     </div>`;
   }
   const pendingNotLive = allManches.filter(m=>!m.live && !mancheComplete(m));
-  const upcoming = pendingNotLive.slice(0,2);
-  const isUpcoming = upcoming.some(m=>m.players.includes(followedPlayerId));
-  if(isUpcoming){
+  const myIndex = pendingNotLive.findIndex(m=>m.players.includes(followedPlayerId));
+  if(myIndex===0){
     return `<div class="card" style="border:2px solid var(--yellow); background:linear-gradient(135deg, rgba(255,201,60,.15), transparent);">
       <div style="font-weight:800; font-size:15px;">🔔 Bientôt ton tour !</div>
-      <div style="font-size:12.5px; color:var(--text-dim); margin-top:4px;">${playerAvatarRow(followedPlayerId,22)} passe très bientôt — reste à côté de l'écran.</div>
+      <div style="font-size:12.5px; color:var(--text-dim); margin-top:4px;">${playerAvatarRow(followedPlayerId,22)} passe juste après — reste à côté de l'écran.</div>
+    </div>`;
+  }
+  if(myIndex>0 && myIndex<=5){
+    return `<div class="card" style="border:2px solid var(--yellow); background:linear-gradient(135deg, rgba(255,201,60,.15), transparent);">
+      <div style="font-weight:800; font-size:15px;">🔔 Encore ${myIndex} course${myIndex>1?'s':''} avant ton tour</div>
+      <div style="font-size:12.5px; color:var(--text-dim); margin-top:4px;">${playerAvatarRow(followedPlayerId,22)} — pas besoin de partir loin.</div>
     </div>`;
   }
   return '';
@@ -1116,6 +1132,7 @@ function viewScores(){
       <button class="danger" id="clearAllLiveBtn" style="margin-top:0;">Tout marquer non-live</button>
       <button class="secondary" id="exportAllManchesBtn" style="margin-top:0;">📥 Export CSV</button>
     </div>
+    <button class="secondary" id="markSelectedLiveBtn" style="margin-top:8px; width:100%; border-color:var(--red); color:var(--red);">🔴 Marquer en direct la sélection (☑️ ci-dessous)</button>
   </div>
   <div id="scoresResults">${scoresResultsHtml()}</div>
   <div class="card">
@@ -1127,8 +1144,9 @@ function viewScores(){
 function renderMancheEditor(m){
   const positions = Array.from({length:m.players.length}, (_,i)=>i+1);
   const hasFollowed = m.players.includes(followedPlayerId);
+  const complete = mancheComplete(m);
   return `<div class="manche ${m.live?'live':''} ${hasFollowed?'followed':''}">
-    <div class="label">${manchLabel(m)} ${m.isFinale ? '<span class="badge or">Finale</span>' : ''} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
+    <div class="label">${!complete?`<input type="checkbox" class="mancheSelectBox" data-manche="${m.id}" style="width:auto; margin-right:6px; vertical-align:middle;">`:''}${manchLabel(m)} ${m.isFinale ? '<span class="badge or">Finale</span>' : ''} ${m.live?'<span class="live-badge"><span class="live-dot"></span>En direct</span>':''}</div>
     ${m.players.map(pid=>`
       <div class="posrow posrow-vert ${pid===followedPlayerId?'followed':''}">
         <span>${playerAvatarRow(pid,22)}</span>
@@ -1459,8 +1477,12 @@ function attachHandlers(){
 
   const genBtn = document.getElementById('genBtn');
   if(genBtn) genBtn.onclick = async ()=>{
-    if(data.manches.some(m=>m.phase==='qualif') && !confirm('Régénérer effacera les manches et scores actuels. Continuer ?')) return;
-    const finales = data.manches.filter(m=>m.phase!=='qualif');
+    if(data.manches.some(m=>m.phase==='qualif') && !confirm('Régénérer effacera les manches et scores de qualification actuels. Continuer ?')) return;
+    let finales = data.manches.filter(m=>m.phase!=='qualif');
+    if(finales.length){
+      const wipeFinales = confirm('Des manches finales existent déjà, basées sur l\'ancien classement des qualifs — elles ne correspondront plus au nouveau classement. Les supprimer aussi pour repartir sur des bases saines ? (Annuler = les garder telles quelles)');
+      if(wipeFinales) finales = [];
+    }
     data.manches = [...generateSchedule(), ...finales];
     data.status = 'qualif';
     if(!data.startedAt) data.startedAt = Date.now();
@@ -1474,6 +1496,19 @@ function attachHandlers(){
   const clearAllLive = document.getElementById('clearAllLiveBtn');
   if(clearAllLive) clearAllLive.onclick = async ()=>{
     data.manches.forEach(m=>{ m.live = false; });
+    await saveData();
+    renderContent();
+  };
+
+  const markSelectedLive = document.getElementById('markSelectedLiveBtn');
+  if(markSelectedLive) markSelectedLive.onclick = async ()=>{
+    const ids = Array.from(document.querySelectorAll('.mancheSelectBox:checked')).map(c=>c.dataset.manche);
+    if(!ids.length){ alert('Coche au moins une manche à marquer en direct.'); return; }
+    ids.forEach(id=>{
+      const m = data.manches.find(x=>x.id===id);
+      if(m) m.live = true;
+    });
+    checkFollowedLiveAlert();
     await saveData();
     renderContent();
   };
@@ -1577,6 +1612,12 @@ function bindScoreEditors(){
       const otherName = otherPhase==='or' ? 'Mario' : 'Luigi';
       alert(`${conflict.map(pid=>playerName(pid)).join(', ')} déjà présent(s) dans le Tableau ${otherName}. Un joueur ne peut pas être dans les deux tableaux.`);
       return;
+    }
+    const playersInSameTableau = new Set(data.manches.filter(m=>m.phase===phase).flatMap(m=>m.players));
+    const repeats = players.filter(pid=>playersInSameTableau.has(pid));
+    if(repeats.length){
+      const tableauName = phase==='or' ? 'Mario' : 'Luigi';
+      if(!confirm(`${repeats.map(pid=>playerName(pid)).join(', ')} joue déjà dans une autre manche du Tableau ${tableauName}. Créer quand même cette manche ?`)) return;
     }
     data.manches.push({ id:'f'+Date.now(), phase, isFinale, label, players, results:{} });
     await saveData();
