@@ -430,6 +430,12 @@ function manchLabel(m){
     const idx = qm.findIndex(x=>x.id===m.id);
     return idx>=0 ? `Course ${idx+1}` : (m.label||'');
   }
+  if(m.phase==='or' || m.phase==='argent'){
+    const tableauName = m.phase==='or' ? 'Mario' : 'Luigi';
+    const fm = data.manches.filter(x=>x.phase===m.phase);
+    const idx = fm.findIndex(x=>x.id===m.id);
+    return idx>=0 ? `Tableau ${tableauName} - Course ${idx+1}` : (m.label||'');
+  }
   return m.label || '';
 }
 function playerEmoji(id){ const p = data.players.find(x=>x.id===id); return p && p.emoji ? p.emoji+' ' : ''; }
@@ -607,10 +613,10 @@ function roundRect(ctx,x,y,w,h,r){
 }
 function generateResultsImage(){
   const rows = classementGeneral();
-  const podium = getPodiumManche();
+  const podium = qualifsComplete() ? classementTableau('or') : null;
   const width = 800;
   const rowH = 34;
-  const headerH = podium ? 250 : 130;
+  const headerH = (podium && podium.length) ? 250 : 130;
   const height = headerH + rows.length*rowH + 50;
   const canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;
@@ -644,12 +650,12 @@ function generateResultsImage(){
 
   let y = 100;
 
-  if(podium){
-    const ranked = Object.entries(podium.results).sort((a,b)=>a[1]-b[1]).slice(0,3);
+  if(podium && podium.length){
+    const ranked = podium.slice(0,3);
     const medals = ['🥇','🥈','🥉'];
     const gap = 16;
     const boxW = (width-60-2*gap)/3;
-    ranked.forEach(([pid,pos],i)=>{
+    ranked.forEach((r,i)=>{
       const x = 30 + i*(boxW+gap);
       ctx.fillStyle = '#20232d';
       ctx.strokeStyle = i===0 ? '#d4af37' : '#2a2e38';
@@ -661,7 +667,7 @@ function generateResultsImage(){
       ctx.fillStyle = '#f1ede3';
       ctx.fillText(medals[i], x+boxW/2, y+48);
       ctx.font = 'bold 15px sans-serif';
-      ctx.fillText(playerEmoji(pid)+playerName(pid), x+boxW/2, y+80);
+      ctx.fillText(playerEmoji(r.id)+r.name, x+boxW/2, y+80);
     });
     ctx.textAlign = 'left';
     y += 140;
@@ -702,32 +708,47 @@ function autoGenerateFinales(){
   if(data.manches.some(m=>m.phase!=='qualif')) return false;
   const ranked = classementGeneral();
   const groupSize = data.config.groupSize || 4;
+  const finaleTours = data.config.finaleTours || 2;
   const marioIds = ranked.slice(0, data.config.qualifiedOr).map(r=>r.id);
   const luigiIds = ranked.slice(data.config.qualifiedOr).map(r=>r.id);
-  function buildTableau(playerIds, phase, tableauName){
-    if(playerIds.length < 2) return;
-    const groups = [];
-    for(let i=0;i<playerIds.length;i+=groupSize) groups.push(playerIds.slice(i,i+groupSize));
-    const isSingleGroup = groups.length===1;
-    groups.forEach((g,gi)=>{
-      data.manches.push({
-        id: phase+'f'+Date.now()+gi+Math.floor(Math.random()*1000),
-        phase, isFinale:isSingleGroup, live:false,
-        label:`Tableau ${tableauName} - Course ${gi+1}`,
-        players:g, results:{}
+  function buildTableauRounds(playerIds, phase){
+    if(playerIds.length < 2) return [];
+    const used = new Set();
+    const list = [];
+    for(let t=1; t<=finaleTours; t++){
+      const groups = generateRound(playerIds, groupSize, used);
+      groups.forEach((g)=>{
+        list.push({ id: phase+'f'+Date.now()+t+Math.floor(Math.random()*100000),
+          phase, isFinale:false, live:false, label:'', players:g, results:{} });
       });
-    });
+    }
+    return list;
   }
-  buildTableau(marioIds, 'or', 'Mario');
-  buildTableau(luigiIds, 'argent', 'Luigi');
+  const marioManches = buildTableauRounds(marioIds, 'or');
+  const luigiManches = buildTableauRounds(luigiIds, 'argent');
+  const maxLen = Math.max(marioManches.length, luigiManches.length);
+  for(let i=0;i<maxLen;i++){
+    if(marioManches[i]) data.manches.push(marioManches[i]);
+    if(luigiManches[i]) data.manches.push(luigiManches[i]);
+  }
   return true;
 }
-function getPodiumManche(){
+function classementTableau(phase){
+  const fm = data.manches.filter(m=>m.phase===phase);
+  const ids = [...new Set(fm.flatMap(m=>m.players))];
+  const totals = {};
+  ids.forEach(id=>totals[id]=0);
+  fm.forEach(m=>{
+    Object.entries(m.results).forEach(([pid,pos])=>{ totals[pid] = (totals[pid]||0) + pointsFor(pos); });
+  });
+  return ids.map(id=>({ id, name:playerName(id), pts: totals[id]||0 })).sort((a,b)=>b.pts-a.pts);
+}
+function finalesComplete(){
   const fm = data.manches.filter(m=>m.phase!=='qualif');
-  return [...fm].reverse().find(m=>m.isFinale && mancheComplete(m));
+  return fm.length>0 && fm.every(mancheComplete);
 }
 function tournamentFinished(){
-  return !!getPodiumManche();
+  return qualifsComplete() && finalesComplete();
 }
 function formatDuration(ms){
   const totalMin = Math.round(ms/60000);
@@ -742,9 +763,7 @@ function render(){
 }
 function renderTabs(){
   const tabs = [['planning','Planning'],['classement','Classement']];
-  if(unlocked || qualifsComplete()) tabs.push(['finales','Finales']);
   if(unlocked) tabs.push(['scores','Scores'], ['reglages','Réglages']);
-  if(!unlocked && currentTab==='finales' && !qualifsComplete()) currentTab = 'classement';
   const nav = document.getElementById('tabs');
   nav.innerHTML = tabs.map(([id,label]) =>
     `<button data-tab="${id}" class="${currentTab===id?'active':''}">${label}</button>`
@@ -763,7 +782,6 @@ function renderContent(){
   }
   if(currentTab==='classement') el.innerHTML = viewClassement();
   else if(currentTab==='planning') el.innerHTML = viewPlanning();
-  else if(currentTab==='finales') el.innerHTML = viewFinales();
   else if(currentTab==='reglages' && unlocked) el.innerHTML = viewReglages();
   else if(currentTab==='scores' && unlocked) el.innerHTML = viewScores();
   attachHandlers();
@@ -807,12 +825,39 @@ function classementRowsHtml(){
     }).join('')}
     </tbody></table>`;
 }
+function tableauSectionHtml(title, rows){
+  if(!rows.length) return '';
+  const rest = rows.slice(3);
+  return `<div class="card">
+    <h2>${title}</h2>
+    ${classementPodiumHtml(rows)}
+    ${rest.length ? `<table><thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead><tbody>
+      ${rest.map((r,i)=>{
+        const rank = i+4;
+        const isFollowed = r.id===followedPlayerId;
+        return `<tr class="${isFollowed?'followed':''}"><td>${rank}</td><td><span class="player-link" data-stats-player="${r.id}">${playerAvatarRow(r.id)}</span></td><td class="pts">${r.pts}</td></tr>`;
+      }).join('')}
+    </tbody></table>` : ''}
+  </div>`;
+}
 function viewClassement(){
   const rows = classementGeneral();
   if(rows.length===0) return `<div class="card"><div class="empty">Aucun joueur enregistré pour l'instant.</div></div>`;
   const canExport = unlocked || tournamentFinished();
-  return `<div class="card">
-    <h2>Classement général — Qualifications</h2>
+  let html = '';
+  if(qualifsComplete()){
+    html += tableauSectionHtml('🏆 Classement Tableau Mario', classementTableau('or'));
+    html += tableauSectionHtml('🍄 Classement Tableau Luigi', classementTableau('argent'));
+    const marioSeed = rows.slice(0, data.config.qualifiedOr);
+    const luigiSeed = rows.slice(data.config.qualifiedOr);
+    html += `<div class="card">
+      <h2>Répartition après qualifs</h2>
+      <p style="font-size:12.5px; margin-bottom:8px;"><span class="badge or">Tableau Mario</span> ${marioSeed.map(r=>r.name).join(', ') || '—'}</p>
+      <p style="font-size:12.5px;"><span class="badge argent">Tableau Luigi</span> ${luigiSeed.map(r=>r.name).join(', ') || '—'}</p>
+    </div>`;
+  }
+  html += `<div class="card">
+    <h2>Classement Qualifs</h2>
     <div class="search-wrap">
       <input class="searchbox" type="text" id="searchClassementInput" placeholder="Rechercher un joueur…" value="${searchClassement}">
       <button class="search-clear" type="button">✕</button>
@@ -821,6 +866,7 @@ function viewClassement(){
     <small class="hint">Barème : ${data.config.pointsTable.map((p,i)=>`${i+1}ᵉ = ${p}pt`).join(' · ')}</small>
     ${canExport ? '<div class="row" style="margin-top:12px;"><button class="secondary" id="exportImgBtn" style="margin-top:0;">🖼️ Image</button><button class="secondary" id="exportCsvBtn" style="margin-top:0;">📥 CSV</button><button class="secondary" id="printBtn" style="margin-top:0;">🖨️ PDF</button></div>' : ''}
   </div>`;
+  return html;
 }
 
 // ---------- Vue Planning ----------
@@ -934,50 +980,9 @@ function viewPlanning(){
   </div>`;
 }
 
-// ---------- Vue Finales ----------
-function viewFinales(){
-  const fm = data.manches.filter(m=>m.phase!=='qualif');
-  const podiumManche = getPodiumManche();
-  let html = '';
-  if(podiumManche){
-    const ranked = Object.entries(podiumManche.results).sort((a,b)=>a[1]-b[1]);
-    html += `<div class="card"><h2>🏆 Podium — ${manchLabel(podiumManche)}</h2>
-      <div class="podium">
-        ${ranked.slice(0,3).map(([pid,pos],i)=>`
-          <div class="place p${i+1}">
-            <div style="font-size:20px;">${i===0?'🥇':i===1?'🥈':'🥉'}</div>
-            <div style="font-weight:700; font-size:12.5px; margin-top:4px;">${playerName(pid)}</div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-  }
-  if(qualifsComplete()){
-    const ranked = classementGeneral();
-    const or = ranked.slice(0, data.config.qualifiedOr);
-    const argent = ranked.slice(data.config.qualifiedOr);
-    html += `<div class="card"><h2>Répartition après qualifications</h2>
-      <p style="font-size:12.5px; margin-bottom:8px;"><span class="badge or">Tableau Mario</span> ${or.map(r=>r.name).join(', ') || '—'}</p>
-      <p style="font-size:12.5px;"><span class="badge argent">Tableau Luigi</span> ${argent.map(r=>r.name).join(', ') || '—'}</p>
-    </div>`;
-  } else {
-    html += `<div class="card"><div class="empty">Les phases finales apparaîtront une fois les qualifications terminées.</div></div>`;
-  }
-  if(fm.length){
-    html += `<div class="card"><h2>Manches finales</h2>
-      ${fm.map(m=>`
-        <div class="manche">
-          <div class="label">${manchLabel(m)} <span class="badge ${m.phase}">${m.phase}</span></div>
-          <div class="status ${mancheComplete(m)?'done':''}">${mancheComplete(m)?'✓ Résultats enregistrés':'À venir'}</div>
-          <div class="players">${m.players.map(pid=>playerName(pid)).join(' · ')}</div>
-        </div>`).join('')}
-    </div>`;
-  }
-  return html;
-}
-
 // ---------- Vue Réglages (admin) ----------
 function viewReglages(){
-  const cfg = data.config || { pin:'', groupSize:4, tours:3, pointsTable:[5,3,2,1], qualifiedOr:20 };
+  const cfg = data.config || { pin:'', groupSize:4, tours:3, finaleTours:2, pointsTable:[5,3,2,1], qualifiedOr:20 };
   const qualifiedOrAuto = cfg.qualifiedOrAuto !== undefined ? cfg.qualifiedOrAuto : !data.config;
   const autoValue = Math.ceil((data.players.length||0)/2) || 1;
   return `<div class="card">
@@ -991,6 +996,8 @@ function viewReglages(){
     <input type="number" id="cfgGroupSize" value="${cfg.groupSize}" min="2" max="8">
     <label>Tours de qualification (courses par joueur)</label>
     <input type="number" id="cfgTours" value="${cfg.tours}" min="1" max="10">
+    <label>Courses en finale par joueur (Tableaux Mario/Luigi)</label>
+    <input type="number" id="cfgFinaleTours" value="${cfg.finaleTours||2}" min="1" max="5">
     <label>Barème de points (1er, 2e, 3e, 4e…) séparés par virgules</label>
     <input type="text" id="cfgPoints" value="${cfg.pointsTable.join(',')}">
     <label>Nombre de qualifiés en Tableau Mario ${qualifiedOrAuto ? '<span style="color:var(--text-dim); font-weight:400; text-transform:none;">(auto — moitié des joueurs)</span>' : ''}</label>
@@ -1204,7 +1211,20 @@ function attachHandlers(){
   const printBtn = document.getElementById('printBtn');
   if(printBtn) printBtn.onclick = ()=>{
     const rows = classementGeneral();
-    const podium = getPodiumManche();
+    const marioRows = qualifsComplete() ? classementTableau('or') : [];
+    const luigiRows = qualifsComplete() ? classementTableau('argent') : [];
+    function podiumBlock(title, prows){
+      if(!prows.length) return '';
+      return `<div class="card"><h2>${title}</h2>
+        <div class="podium">
+          ${prows.slice(0,3).map((r,i)=>`
+            <div class="place p${i+1}">
+              <div style="font-size:22px;">${i===0?'🥇':i===1?'🥈':'🥉'}</div>
+              <div style="font-weight:700; font-size:13px; margin-top:4px;">${playerEmoji(r.id)}${r.name}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    }
     document.getElementById('printView').innerHTML = `
       <div style="text-align:center; margin-bottom:24px;">
         <h1 style="font-size:28px; font-style:italic; font-weight:800; text-transform:uppercase;">
@@ -1212,17 +1232,10 @@ function attachHandlers(){
         </h1>
         <div style="color:var(--text-dim); font-size:13px; margin-top:4px;">AS Joliot-Curie — Résultats du tournoi</div>
       </div>
-      ${podium ? `<div class="card"><h2>🏆 Podium final — ${manchLabel(podium)}</h2>
-        <div class="podium">
-          ${Object.entries(podium.results).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([pid,pos],i)=>`
-            <div class="place p${i+1}">
-              <div style="font-size:22px;">${i===0?'🥇':i===1?'🥈':'🥉'}</div>
-              <div style="font-weight:700; font-size:13px; margin-top:4px;">${playerEmoji(pid)}${playerName(pid)}</div>
-            </div>`).join('')}
-        </div>
-      </div>` : ''}
+      ${podiumBlock('🏆 Podium — Tableau Mario', marioRows)}
+      ${podiumBlock('🏆 Podium — Tableau Luigi', luigiRows)}
       <div class="card">
-        <h2>Classement général — Qualifications</h2>
+        <h2>Classement Qualifs</h2>
         <table><thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead><tbody>
           ${rows.map((r,i)=>`<tr class="${i===0?'rank1':''}"><td>${i+1}</td><td>${playerEmoji(r.id)}${r.name}</td><td class="pts">${r.pts}</td></tr>`).join('')}
         </tbody></table>
@@ -1244,13 +1257,19 @@ function attachHandlers(){
   const exportCsv = document.getElementById('exportCsvBtn');
   if(exportCsv) exportCsv.onclick = ()=>{
     const rows = classementGeneral();
-    let csv = 'Classement général\nRang,Joueur,Points\n';
+    let csv = 'Classement Qualifs\nRang,Joueur,Points\n';
     rows.forEach((r,i)=>{ csv += `${i+1},"${r.name}",${r.pts}\n`; });
-    const podium = getPodiumManche();
-    if(podium){
-      csv += '\nPodium final\nPlace,Joueur\n';
-      const ranked = Object.entries(podium.results).sort((a,b)=>a[1]-b[1]);
-      ranked.forEach(([pid,pos])=>{ csv += `${pos},"${playerName(pid)}"\n`; });
+    if(qualifsComplete()){
+      const marioRows = classementTableau('or');
+      const luigiRows = classementTableau('argent');
+      if(marioRows.length){
+        csv += '\nClassement Tableau Mario\nRang,Joueur,Points\n';
+        marioRows.forEach((r,i)=>{ csv += `${i+1},"${r.name}",${r.pts}\n`; });
+      }
+      if(luigiRows.length){
+        csv += '\nClassement Tableau Luigi\nRang,Joueur,Points\n';
+        luigiRows.forEach((r,i)=>{ csv += `${i+1},"${r.name}",${r.pts}\n`; });
+      }
     }
     const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
     const a = document.createElement('a');
@@ -1311,6 +1330,7 @@ function attachHandlers(){
       pin,
       groupSize: parseInt(document.getElementById('cfgGroupSize').value)||4,
       tours: parseInt(document.getElementById('cfgTours').value)||3,
+      finaleTours: parseInt(document.getElementById('cfgFinaleTours').value)||2,
       pointsTable: document.getElementById('cfgPoints').value.split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x)),
       qualifiedOr: qualifiedOrAuto ? (Math.ceil((data.players.length||0)/2)||1) : (parseInt(document.getElementById('cfgOr').value)||1),
       qualifiedOrAuto,
