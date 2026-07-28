@@ -227,6 +227,8 @@
   }
   .planning-group:first-child .planning-group-title{ margin-top:0; }
   .manche.upcoming{ border-left:3px solid var(--yellow); }
+  .tableauFilterBtn{ flex:1; }
+  .tableauFilterBtn.active-filter{ background:var(--yellow); color:#14161c; border-color:var(--yellow); }
   .projection-qr-corner{
     display:none; position:fixed; bottom:18px; right:18px; background:#fff; padding:8px;
     border-radius:12px; box-shadow:0 6px 24px #0008; z-index:30;
@@ -323,7 +325,9 @@ let searchName = '';
 let searchClassement = '';
 let searchScores = '';
 let planningArchiveOpen = false;
+let planningTableauFilter = 'all';
 let scoresArchiveOpen = false;
+let finalesArchiveOpen = false;
 function bindArchiveToggle(elId, onToggle){
   const el = document.getElementById(elId);
   if(el) el.ontoggle = ()=> onToggle(el.open);
@@ -894,7 +898,7 @@ function mancheResultCardHtml(m){
       </div>`;
 }
 function planningResultsHtml(){
-  const allManches = data.manches;
+  const allManches = planningTableauFilter==='all' ? data.manches : data.manches.filter(m=>m.phase===planningTableauFilter);
   const matches = (m)=> !searchName.trim() || m.players.some(pid=>playerName(pid).toLowerCase().includes(searchName.toLowerCase()));
 
   const liveList = allManches.filter(m=>m.live);
@@ -942,11 +946,18 @@ function tournamentProgressHtml(){
     const done = qm.filter(mancheComplete).length;
     return progressCard('Progression des qualifs', done, total, Math.round((done/total)*100));
   }
-  const fm = data.manches.filter(m=>m.phase!=='qualif');
-  const total = fm.length;
-  if(!total) return '';
-  const done = fm.filter(mancheComplete).length;
-  return progressCard('Progression des finales', done, total, Math.round((done/total)*100));
+  let html = '';
+  const marioManches = data.manches.filter(m=>m.phase==='or');
+  const luigiManches = data.manches.filter(m=>m.phase==='argent');
+  if(marioManches.length){
+    const done = marioManches.filter(mancheComplete).length;
+    html += progressCard('🏆 Progression Mario', done, marioManches.length, Math.round((done/marioManches.length)*100));
+  }
+  if(luigiManches.length){
+    const done = luigiManches.filter(mancheComplete).length;
+    html += progressCard('🍄 Progression Luigi', done, luigiManches.length, Math.round((done/luigiManches.length)*100));
+  }
+  return html;
 }
 function myTurnBannerHtml(){
   if(!followedPlayerId) return '';
@@ -971,8 +982,14 @@ function myTurnBannerHtml(){
 }
 function viewPlanning(){
   if(data.manches.length===0) return `<div class="card"><div class="empty">Aucune manche générée pour le moment.</div></div>`;
+  const filterButtons = qualifsComplete() ? `<div class="row" style="margin-bottom:0;">
+    <button type="button" class="secondary tableauFilterBtn ${planningTableauFilter==='all'?'active-filter':''}" data-filter="all" style="margin-top:0;">Tous</button>
+    <button type="button" class="secondary tableauFilterBtn ${planningTableauFilter==='or'?'active-filter':''}" data-filter="or" style="margin-top:0;">🏆 Mario</button>
+    <button type="button" class="secondary tableauFilterBtn ${planningTableauFilter==='argent'?'active-filter':''}" data-filter="argent" style="margin-top:0;">🍄 Luigi</button>
+  </div>` : '';
   return tournamentProgressHtml() + myTurnBannerHtml() + `<div class="card">
-    <div class="search-wrap">
+    ${filterButtons}
+    <div class="search-wrap" style="${filterButtons?'margin-top:12px;':''}">
       <input class="searchbox" type="text" id="searchInput" placeholder="Rechercher un joueur…" value="${searchName}">
       <button class="search-clear" type="button">✕</button>
     </div>
@@ -1062,6 +1079,8 @@ function scoresResultsHtml(){
   const finales = data.manches.filter(m=>m.phase!=='qualif' && match(m));
   const qualifTodo = qualif.filter(m=>!mancheComplete(m));
   const qualifDone = qualif.filter(mancheComplete);
+  const finalesTodo = finales.filter(m=>!mancheComplete(m));
+  const finalesDone = finales.filter(mancheComplete);
   return `<div class="card">
     <h2>Saisie des scores — Qualifications</h2>
     ${qualifTodo.map(m=>renderMancheEditor(m)).join('') || '<div class="empty">Toutes les manches ont un résultat 🎉</div>'}
@@ -1072,7 +1091,11 @@ function scoresResultsHtml(){
   </div>
   <div class="card">
     <h2>Manches finales</h2>
-    ${finales.map(m=>renderMancheEditor(m)).join('') || '<p style="font-size:12.5px; color:var(--text-dim);">Aucune manche finale.</p>'}
+    ${finalesTodo.map(m=>renderMancheEditor(m)).join('') || (finales.length ? '<p style="font-size:12.5px; color:var(--text-dim);">Toutes les manches finales ont un résultat 🎉</p>' : '<p style="font-size:12.5px; color:var(--text-dim);">Aucune manche finale.</p>')}
+    ${finalesDone.length ? `<details id="finalesArchiveDetails" style="margin-top:14px;" ${finalesArchiveOpen?'open':''}>
+      <summary style="cursor:pointer; color:var(--text-dim); font-size:12.5px; padding:8px 0;">📦 ${finalesDone.length} manche(s) finale(s) archivée(s) — cliquer pour afficher</summary>
+      ${finalesDone.map(m=>renderMancheEditor(m)).join('')}
+    </details>` : ''}
     ${qualifsComplete() ? renderNewFinaleForm() : '<p style="font-size:12px; color:var(--text-dim); margin-top:10px;">Termine les qualifications pour créer les manches finales.</p>'}
   </div>`;
 }
@@ -1123,6 +1146,8 @@ function renderMancheEditor(m){
 
 function renderNewFinaleForm(){
   const ranked = classementGeneral();
+  const marioSet = new Set(data.manches.filter(m=>m.phase==='or').flatMap(m=>m.players));
+  const luigiSet = new Set(data.manches.filter(m=>m.phase==='argent').flatMap(m=>m.players));
   return `<div class="manche" style="border-style:dashed;">
     <div class="label">Créer une manche finale</div>
     <label>Nom de la manche</label>
@@ -1132,7 +1157,10 @@ function renderNewFinaleForm(){
     <label><input type="checkbox" id="finaleIsPodium" style="width:auto; display:inline-block;"> Marquer comme manche décisive (affiche le podium)</label>
     <label>Joueurs concernés</label>
     <div class="checklist">
-      ${ranked.map(r=>`<div class="checkitem"><input type="checkbox" class="finalePlayer" value="${r.id}" style="width:auto;"> ${playerEmoji(r.id)}${r.name} <span style="color:var(--text-dim); font-size:11px;">(${r.pts}pts)</span></div>`).join('')}
+      ${ranked.map(r=>{
+        const already = marioSet.has(r.id) ? 'Mario' : (luigiSet.has(r.id) ? 'Luigi' : null);
+        return `<div class="checkitem"><input type="checkbox" class="finalePlayer" value="${r.id}" style="width:auto;"> ${playerEmoji(r.id)}${r.name} <span style="color:var(--text-dim); font-size:11px;">(${r.pts}pts)</span>${already?` <span style="color:var(--yellow); font-size:10.5px; font-weight:800;">déjà en ${already}</span>`:''}</div>`;
+      }).join('')}
     </div>
     <button class="primary" id="createFinaleBtn">Créer la manche</button>
   </div>`;
@@ -1201,6 +1229,7 @@ function attachHandlers(){
   };
   bindArchiveToggle('planningArchiveDetails', (open)=>{ planningArchiveOpen = open; });
   bindArchiveToggle('scoresArchiveDetails', (open)=>{ scoresArchiveOpen = open; });
+  bindArchiveToggle('finalesArchiveDetails', (open)=>{ finalesArchiveOpen = open; });
   if(currentTab==='scores'){
     updateScoresTimer();
     if(!scoresTimerInterval) scoresTimerInterval = setInterval(updateScoresTimer, 15000);
@@ -1277,6 +1306,11 @@ function attachHandlers(){
     a.download = 'classement-mario-kart.csv';
     a.click();
   };
+
+  document.querySelectorAll('.tableauFilterBtn').forEach(b=>b.onclick = ()=>{
+    planningTableauFilter = b.dataset.filter;
+    renderContent();
+  });
 
   wireSearchBox('searchInput', (val)=>{
     searchName = val;
@@ -1471,6 +1505,7 @@ function attachHandlers(){
 
 function bindScoreEditors(){
   bindArchiveToggle('scoresArchiveDetails', (open)=>{ scoresArchiveOpen = open; });
+  bindArchiveToggle('finalesArchiveDetails', (open)=>{ finalesArchiveOpen = open; });
   document.querySelectorAll('.posBtn').forEach(btn=>{
     btn.onclick = ()=>{
       const group = btn.parentElement;
@@ -1535,6 +1570,14 @@ function bindScoreEditors(){
     const isFinale = document.getElementById('finaleIsPodium').checked;
     const players = Array.from(document.querySelectorAll('.finalePlayer:checked')).map(c=>c.value);
     if(!label || players.length<2){ alert('Ajoute un nom et au moins 2 joueurs.'); return; }
+    const otherPhase = phase==='or' ? 'argent' : 'or';
+    const playersInOtherTableau = new Set(data.manches.filter(m=>m.phase===otherPhase).flatMap(m=>m.players));
+    const conflict = players.filter(pid=>playersInOtherTableau.has(pid));
+    if(conflict.length){
+      const otherName = otherPhase==='or' ? 'Mario' : 'Luigi';
+      alert(`${conflict.map(pid=>playerName(pid)).join(', ')} déjà présent(s) dans le Tableau ${otherName}. Un joueur ne peut pas être dans les deux tableaux.`);
+      return;
+    }
     data.manches.push({ id:'f'+Date.now(), phase, isFinale, label, players, results:{} });
     await saveData();
     renderContent();
@@ -1700,21 +1743,29 @@ function showPlayerStatsModal(playerId){
   const positions = qualifManches.map(m=>m.results[p.id]);
   const bestPos = positions.length ? Math.min(...positions) : null;
   const avgPos = positions.length ? (positions.reduce((a,b)=>a+b,0)/positions.length).toFixed(1) : null;
-  const finaleManches = data.manches.filter(m=>m.phase!=='qualif' && m.results[p.id]!==undefined);
+  const playerTableauPhase = data.manches.find(m=>m.phase!=='qualif' && m.players.includes(p.id))?.phase || null;
+  const finaleManches = playerTableauPhase ? data.manches.filter(m=>m.phase===playerTableauPhase && m.results[p.id]!==undefined) : [];
+  const tableauRows = playerTableauPhase ? classementTableau(playerTableauPhase) : [];
+  const tableauRank = tableauRows.findIndex(r=>r.id===p.id)+1;
+  const tableauTotal = tableauRows.find(r=>r.id===p.id)?.pts || 0;
+  const tableauName = playerTableauPhase==='or' ? 'Mario' : (playerTableauPhase==='argent' ? 'Luigi' : null);
   document.getElementById('modalRoot').innerHTML = `
     <div class="modal-bg" id="statsModalBg">
       <div class="modal" style="max-width:400px;">
         <h2 style="margin-bottom:12px;">${playerAvatarRow(p.id,30)}</h2>
         <table><tbody>
           <tr><td>Rang qualifs</td><td class="pts" style="text-align:right;">${rank>0?rank:'—'} / ${rows.length}</td></tr>
-          <tr><td>Points totaux</td><td class="pts" style="text-align:right;">${total}</td></tr>
-          <tr><td>Courses jouées</td><td class="pts" style="text-align:right;">${qualifManches.length}</td></tr>
-          ${bestPos ? `<tr><td>Meilleure place</td><td class="pts" style="text-align:right;">${bestPos}${bestPos===1?'er':'e'}</td></tr>` : ''}
-          ${avgPos ? `<tr><td>Place moyenne</td><td class="pts" style="text-align:right;">${avgPos}</td></tr>` : ''}
+          <tr><td>Points qualifs</td><td class="pts" style="text-align:right;">${total}</td></tr>
+          <tr><td>Courses de qualif jouées</td><td class="pts" style="text-align:right;">${qualifManches.length}</td></tr>
+          ${bestPos ? `<tr><td>Meilleure place (qualifs)</td><td class="pts" style="text-align:right;">${bestPos}${bestPos===1?'er':'e'}</td></tr>` : ''}
+          ${avgPos ? `<tr><td>Place moyenne (qualifs)</td><td class="pts" style="text-align:right;">${avgPos}</td></tr>` : ''}
+          ${tableauName ? `<tr><td>Tableau</td><td class="pts" style="text-align:right;">${tableauName==='Mario'?'🏆':'🍄'} ${tableauName}</td></tr>
+          <tr><td>Rang ${tableauName}</td><td class="pts" style="text-align:right;">${tableauRank>0?tableauRank:'—'} / ${tableauRows.length}</td></tr>
+          <tr><td>Points ${tableauName}</td><td class="pts" style="text-align:right;">${tableauTotal}</td></tr>` : ''}
         </tbody></table>
-        <div class="planning-group-title" style="margin-top:16px;">Historique des courses</div>
+        <div class="planning-group-title" style="margin-top:16px;">Historique des courses de qualif</div>
         ${qualifManches.length ? qualifManches.map(m=>`<div class="historyItem">${manchLabel(m)} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('') : '<p style="font-size:12.5px; color:var(--text-dim);">Aucune course jouée pour le moment.</p>'}
-        ${finaleManches.length ? `<div class="planning-group-title" style="margin-top:16px;">Phases finales</div>${finaleManches.map(m=>`<div class="historyItem">${manchLabel(m)} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place</div>`).join('')}` : ''}
+        ${finaleManches.length ? `<div class="planning-group-title" style="margin-top:16px;">Historique Tableau ${tableauName}</div>${finaleManches.map(m=>`<div class="historyItem">${manchLabel(m)} — ${m.results[p.id]}${m.results[p.id]===1?'er':'e'} place (+${pointsFor(m.results[p.id])} pts)</div>`).join('')}` : ''}
         <button class="secondary" id="statsCloseBtn" style="width:100%; margin-top:16px;">Fermer</button>
       </div>
     </div>`;
