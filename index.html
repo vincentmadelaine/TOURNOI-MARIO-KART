@@ -719,10 +719,11 @@ function autoGenerateFinales(){
     if(playerIds.length < 2) return [];
     const used = new Set();
     const list = [];
+    let seq = 1;
     for(let t=1; t<=finaleTours; t++){
       const groups = generateRound(playerIds, groupSize, used);
       groups.forEach((g)=>{
-        list.push({ id: phase+'f'+Date.now()+t+Math.floor(Math.random()*100000),
+        list.push({ id: phase+'f'+Date.now()+'_'+(seq++),
           phase, isFinale:false, live:false, label:'', players:g, results:{} });
       });
     }
@@ -1442,6 +1443,10 @@ function attachHandlers(){
     followedPlayerId = null;
     try{ localStorage.removeItem('followedPlayerId'); }catch(e){}
     currentTab = 'planning';
+    undoStack = [];
+    redoStack = [];
+    searchName = ''; searchClassement = ''; searchScores = '';
+    planningTableauFilter = 'all';
     await saveData();
     updateLockBtn();
     render();
@@ -1572,7 +1577,6 @@ function bindScoreEditors(){
     if(!data.actionLog) data.actionLog = [];
     data.actionLog.unshift({ label: manchLabel(m), time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
     data.actionLog = data.actionLog.slice(0,5);
-    if(m.isFinale && mancheComplete(m) && !data.finishedAt) data.finishedAt = Date.now();
     if(m.live && mancheComplete(m)) m.live = false;
     autoGenerateFinales();
     await saveData();
