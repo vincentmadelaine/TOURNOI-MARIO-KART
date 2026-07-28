@@ -33,9 +33,9 @@
   .headerTop{ display:flex; align-items:center; justify-content:flex-end; gap:10px; }
   .header-menu-wrap{ position:relative; display:inline-block; }
   .header-menu-panel{
-    display:none; flex-direction:column; gap:6px; position:absolute; top:calc(100% + 8px); right:0;
+    display:none; flex-direction:column; gap:6px; position:fixed; z-index:60;
     background:var(--bg-card); border:1px solid var(--line); border-radius:12px; padding:8px;
-    min-width:170px; box-shadow:0 12px 32px #000a; z-index:50;
+    min-width:170px; box-shadow:0 12px 32px #000a;
   }
   .header-menu-panel.open{ display:flex; }
   .header-menu-panel .lockbtn{ width:100%; text-align:left; justify-content:flex-start; }
@@ -841,8 +841,10 @@ function renderTabs(){
   });
 }
 
+let lastRenderedTab = null;
 function renderContent(){
   const el = document.getElementById('content');
+  const isTabChange = currentTab !== lastRenderedTab;
   if(!data.config && currentTab!=='reglages'){
     el.innerHTML = `<div class="pre-tournament-msg"><div style="font-size:52px;">🏁</div><div style="margin-top:12px; font-weight:800; font-size:16px;">Tournoi en préparation</div><div style="color:var(--text-dim); font-size:12.5px; margin-top:4px;">Reviens dans un instant !</div></div>`;
   } else if(currentTab==='classement') el.innerHTML = viewClassement();
@@ -851,9 +853,12 @@ function renderContent(){
   else if(currentTab==='scores' && unlocked) el.innerHTML = viewScores();
   attachHandlers();
   if(currentTab==='classement') animateClassementTable();
-  el.classList.remove('fade-in');
-  void el.offsetWidth;
-  el.classList.add('fade-in');
+  if(isTabChange){
+    el.classList.remove('fade-in');
+    void el.offsetWidth;
+    el.classList.add('fade-in');
+  }
+  lastRenderedTab = currentTab;
 }
 
 // ---------- Vue Classement ----------
@@ -1829,9 +1834,26 @@ function setFollowed(id){
 }
 function followingSummaryText(pid){
   if(!data.config || !data.players.length) return '';
-  const rows = classementGeneral();
-  const rank = rows.findIndex(r=>r.id===pid)+1;
-  const rankText = rank>0 ? `${rank}${rank===1?'er':'e'}` : '—';
+  let rankText, rankLabel;
+  if(qualifsComplete()){
+    const phase = data.manches.find(m=>m.phase!=='qualif' && m.players.includes(pid))?.phase || null;
+    if(phase){
+      const tRows = classementTableau(phase);
+      const rank = tRows.findIndex(r=>r.id===pid)+1;
+      rankText = rank>0 ? `${rank}${rank===1?'er':'e'}` : '—';
+      rankLabel = phase==='or' ? 'Mario' : 'Luigi';
+    } else {
+      const rows = classementGeneral();
+      const rank = rows.findIndex(r=>r.id===pid)+1;
+      rankText = rank>0 ? `${rank}${rank===1?'er':'e'}` : '—';
+      rankLabel = 'qualifs';
+    }
+  } else {
+    const rows = classementGeneral();
+    const rank = rows.findIndex(r=>r.id===pid)+1;
+    rankText = rank>0 ? `${rank}${rank===1?'er':'e'}` : '—';
+    rankLabel = 'qualifs';
+  }
   const isLive = data.manches.some(m=>m.live && m.players.includes(pid));
   const pendingNotLive = data.manches.filter(m=>!m.live && !mancheComplete(m));
   const idx = pendingNotLive.findIndex(m=>m.players.includes(pid));
@@ -1840,7 +1862,7 @@ function followingSummaryText(pid){
   else if(idx===0) nextText = 'juste après';
   else if(idx>0) nextText = `dans ${idx} course${idx>1?'s':''}`;
   else nextText = 'à venir';
-  return `${rankText} qualifs · ${nextText}`;
+  return `${rankText} ${rankLabel} · ${nextText}`;
 }
 function updateFollowBtn(){
   const btn = document.getElementById('followBtn');
@@ -2005,7 +2027,15 @@ document.getElementById('followingChip').onclick = ()=> document.getElementById(
 
 document.getElementById('menuBtn').onclick = (e)=>{
   e.stopPropagation();
-  document.getElementById('headerMenuPanel').classList.toggle('open');
+  const btn = document.getElementById('menuBtn');
+  const panel = document.getElementById('headerMenuPanel');
+  const willOpen = !panel.classList.contains('open');
+  if(willOpen){
+    const rect = btn.getBoundingClientRect();
+    panel.style.top = (rect.bottom + 8) + 'px';
+    panel.style.right = (window.innerWidth - rect.right) + 'px';
+  }
+  panel.classList.toggle('open', willOpen);
 };
 document.getElementById('headerMenuPanel').addEventListener('click', (e)=>{
   if(e.target.closest('button')) document.getElementById('headerMenuPanel').classList.remove('open');
@@ -2155,6 +2185,7 @@ function maybeShowTutorial(){
   if(!seen) showTutorialStep(0);
 }
 
+setTimeout(()=>{ document.getElementById('loadingScreen')?.remove(); }, 12000);
 async function init(){
   await loadData();
   if(syncStatus==='error'){
