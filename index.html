@@ -697,6 +697,31 @@ function qualifsComplete(){
   const qm = data.manches.filter(m=>m.phase==='qualif');
   return qm.length>0 && qm.every(mancheComplete);
 }
+function autoGenerateFinales(){
+  if(!qualifsComplete()) return false;
+  if(data.manches.some(m=>m.phase!=='qualif')) return false;
+  const ranked = classementGeneral();
+  const groupSize = data.config.groupSize || 4;
+  const marioIds = ranked.slice(0, data.config.qualifiedOr).map(r=>r.id);
+  const luigiIds = ranked.slice(data.config.qualifiedOr).map(r=>r.id);
+  function buildTableau(playerIds, phase, tableauName){
+    if(playerIds.length < 2) return;
+    const groups = [];
+    for(let i=0;i<playerIds.length;i+=groupSize) groups.push(playerIds.slice(i,i+groupSize));
+    const isSingleGroup = groups.length===1;
+    groups.forEach((g,gi)=>{
+      data.manches.push({
+        id: phase+'f'+Date.now()+gi+Math.floor(Math.random()*1000),
+        phase, isFinale:isSingleGroup, live:false,
+        label:`Tableau ${tableauName} - Course ${gi+1}`,
+        players:g, results:{}
+      });
+    });
+  }
+  buildTableau(marioIds, 'or', 'Mario');
+  buildTableau(luigiIds, 'argent', 'Luigi');
+  return true;
+}
 function getPodiumManche(){
   const fm = data.manches.filter(m=>m.phase!=='qualif');
   return [...fm].reverse().find(m=>m.isFinale && mancheComplete(m));
@@ -823,11 +848,11 @@ function mancheResultCardHtml(m){
       </div>`;
 }
 function planningResultsHtml(){
-  const qm = data.manches.filter(m=>m.phase==='qualif');
+  const allManches = data.manches;
   const matches = (m)=> !searchName.trim() || m.players.some(pid=>playerName(pid).toLowerCase().includes(searchName.toLowerCase()));
 
-  const liveList = qm.filter(m=>m.live);
-  const notLive = qm.filter(m=>!m.live);
+  const liveList = allManches.filter(m=>m.live);
+  const notLive = allManches.filter(m=>!m.live);
   const completedList = notLive.filter(mancheComplete);
   const pendingNotLive = notLive.filter(m=>!mancheComplete(m));
   const upcoming = pendingNotLive.slice(0,2);
@@ -853,32 +878,41 @@ function planningResultsHtml(){
     + renderArchived(completedList);
   return html || `<div class="empty">Aucun résultat pour ce joueur.</div>`;
 }
-function tournamentProgressHtml(){
-  const qm = data.manches.filter(m=>m.phase==='qualif');
-  const total = qm.length;
-  const done = qm.filter(mancheComplete).length;
-  if(!total) return '';
-  const pct = Math.round((done/total)*100);
+function progressCard(title, done, total, pct){
   return `<div class="card" style="padding:14px 16px;">
     <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-dim); margin-bottom:7px; font-weight:800; text-transform:uppercase; letter-spacing:.4px;">
-      <span>Progression du tournoi</span><span>${done}/${total} courses</span>
+      <span>${title}</span><span>${done}/${total} courses</span>
     </div>
     <div class="progress-track">
       <div class="progress-fill" style="width:${pct}%;"></div>
     </div>
   </div>`;
 }
+function tournamentProgressHtml(){
+  if(!qualifsComplete()){
+    const qm = data.manches.filter(m=>m.phase==='qualif');
+    const total = qm.length;
+    if(!total) return '';
+    const done = qm.filter(mancheComplete).length;
+    return progressCard('Progression des qualifs', done, total, Math.round((done/total)*100));
+  }
+  const fm = data.manches.filter(m=>m.phase!=='qualif');
+  const total = fm.length;
+  if(!total) return '';
+  const done = fm.filter(mancheComplete).length;
+  return progressCard('Progression des finales', done, total, Math.round((done/total)*100));
+}
 function myTurnBannerHtml(){
   if(!followedPlayerId) return '';
-  const qm = data.manches.filter(m=>m.phase==='qualif');
-  const isLiveNow = qm.some(m=>m.live && m.players.includes(followedPlayerId));
+  const allManches = data.manches;
+  const isLiveNow = allManches.some(m=>m.live && m.players.includes(followedPlayerId));
   if(isLiveNow){
     return `<div class="card" style="border:2px solid var(--red); background:linear-gradient(135deg, rgba(232,72,60,.18), transparent);">
       <div style="font-weight:800; font-size:15px;">🔴 C'est parti, c'est ton tour !</div>
       <div style="font-size:12.5px; color:var(--text-dim); margin-top:4px;">${playerAvatarRow(followedPlayerId,22)} joue en ce moment.</div>
     </div>`;
   }
-  const pendingNotLive = qm.filter(m=>!m.live && !mancheComplete(m));
+  const pendingNotLive = allManches.filter(m=>!m.live && !mancheComplete(m));
   const upcoming = pendingNotLive.slice(0,2);
   const isUpcoming = upcoming.some(m=>m.players.includes(followedPlayerId));
   if(isUpcoming){
@@ -890,8 +924,7 @@ function myTurnBannerHtml(){
   return '';
 }
 function viewPlanning(){
-  const qm = data.manches.filter(m=>m.phase==='qualif');
-  if(qm.length===0) return `<div class="card"><div class="empty">Aucune manche générée pour le moment.</div></div>`;
+  if(data.manches.length===0) return `<div class="card"><div class="empty">Aucune manche générée pour le moment.</div></div>`;
   return tournamentProgressHtml() + myTurnBannerHtml() + `<div class="card">
     <div class="search-wrap">
       <input class="searchbox" type="text" id="searchInput" placeholder="Rechercher un joueur…" value="${searchName}">
@@ -1451,6 +1484,7 @@ function bindScoreEditors(){
     data.actionLog = data.actionLog.slice(0,5);
     if(m.isFinale && mancheComplete(m) && !data.finishedAt) data.finishedAt = Date.now();
     if(m.live && mancheComplete(m)) m.live = false;
+    autoGenerateFinales();
     await saveData();
     renderContent();
   });
