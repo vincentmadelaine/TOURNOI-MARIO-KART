@@ -149,7 +149,8 @@
   .manche .status{font-size:11px; color:var(--text-dim); margin-top:2px;}
   .manche .status.done{color:var(--green);}
   .manche .players{margin-top:8px; font-size:13px;}
-  .players-grid{ display:flex; flex-wrap:wrap; gap:8px 14px; }
+  .players-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  .players-grid .player-link, .players-grid .followed-name{ display:flex; align-items:center; min-width:0; }
   .posrow{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-top:1px solid var(--line);}
   .posrow:first-of-type{border-top:none;}
   .posrow select{width:90px;}
