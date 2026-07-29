@@ -63,6 +63,13 @@
   }
   #followBtn.pulse-hint{ animation: followPulseHint 1.8s ease-in-out infinite; border-color:var(--yellow); color:var(--yellow); }
 
+  .confetti-piece{
+    position:fixed; top:-20px; width:9px; height:14px; z-index:90; pointer-events:none;
+    animation: confettiFall linear forwards; border-radius:2px;
+  }
+  @keyframes confettiFall{
+    to{ transform: translateY(110vh) rotate(var(--rot)); opacity:.25; }
+  }
   .loading-screen{
     position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:14px; z-index:100;
@@ -182,18 +189,10 @@
   .podium .place.p1{border-color:var(--gold); border-width:4px; padding:18px 6px; position:relative; z-index:1; box-shadow:0 6px 20px #0006;}
   .podium .place.p2{border-color:#c9cdd6; border-width:3px; padding:11px 6px; opacity:.95;}
   .podium .place.p3{border-color:#cd7f32; border-width:2px; padding:9px 6px; opacity:.9;}
-  .podium .place.followed{ outline:2px solid var(--yellow); outline-offset:2px; animation: followGlow 2s ease-in-out infinite; }
-  @keyframes followGlow{
-    0%,100%{ box-shadow:0 0 6px 0 rgba(255,201,60,.35); }
-    50%{ box-shadow:0 0 18px 4px rgba(255,201,60,.8); }
-  }
-  @keyframes followTextGlow{
-    0%,100%{ text-shadow:0 0 6px rgba(255,201,60,.4); }
-    50%{ text-shadow:0 0 15px rgba(255,201,60,.95); }
-  }
-  @keyframes followRowPulse{
-    0%,100%{ background:rgba(255,201,60,.08); }
-    50%{ background:rgba(255,201,60,.24); }
+  .podium-follow-mark{
+    position:absolute; bottom:-3px; right:-3px; background:var(--yellow); color:#14161c;
+    font-size:10px; width:16px; height:16px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; border:2px solid var(--bg-card);
   }
   .checklist{max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px; margin-top:6px;}
   .checkitem{display:flex; align-items:center; gap:8px; padding:5px 2px; font-size:13px;}
@@ -262,14 +261,18 @@
   .tableauFilterBtn, .classementSubTabBtn{ flex:1; }
   .sticky-banner{ position:sticky; top:8px; z-index:20; box-shadow:0 8px 24px #0008; }
   .following-chip{
-    display:none; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:9px 14px;
+    display:none; align-items:center; justify-content:center; gap:8px; padding:9px 14px;
     background:var(--bg-alt); border-bottom:1px solid var(--line); font-size:12.5px; font-weight:800;
     cursor:pointer; color:var(--yellow); text-transform:uppercase; letter-spacing:.3px;
   }
   .following-chip.visible{ display:flex; }
   .following-chip .avatar-name{ color:var(--yellow); }
-  .following-summary{ font-size:11px; color:var(--text-dim); text-transform:none; font-weight:600; letter-spacing:0; }
   body.projection .following-chip{ display:none !important; }
+  .last-sync-indicator{
+    display:none; text-align:center; font-size:10.5px; color:var(--yellow); padding:5px; font-weight:700;
+  }
+  .last-sync-indicator.stale{ display:block; }
+  body.projection .last-sync-indicator{ display:none !important; }
   .pre-tournament-msg{ text-align:center; padding:60px 20px; }
   body.pre-tournament #followBtn, body.pre-tournament #statsBtn, body.pre-tournament nav{ display:none !important; }
   body.pre-tournament main{ display:flex; align-items:center; justify-content:center; min-height:65vh; }
@@ -282,6 +285,10 @@
   body.projection .projection-qr-corner{ display:block; }
 
   tr.followed td{ background:rgba(255,201,60,.12); animation: followRowPulse 2s ease-in-out infinite; }
+  @keyframes followRowPulse{
+    0%,100%{ background:rgba(255,201,60,.08); }
+    50%{ background:rgba(255,201,60,.24); }
+  }
   tr[data-player-row]{ will-change:transform; }
   tr.pts-flash td{ background:rgba(255,201,60,.28); transition:background .9s ease; }
 
@@ -289,25 +296,20 @@
   .progress-fill{
     height:100%; border-radius:20px; background:linear-gradient(90deg, var(--yellow), var(--red));
     position:relative; overflow:hidden; transition:width .4s ease;
-    animation: progressGlow 2.2s ease-in-out infinite;
   }
   .progress-fill::after{
-    content:''; position:absolute; top:0; left:0; height:100%; width:40%;
-    background:linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
-    animation: progressShine 2.4s linear infinite;
+    content:''; position:absolute; top:0; left:0; height:100%; width:35%;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.32), transparent);
+    animation: progressShine 3.2s linear infinite;
   }
   @keyframes progressShine{
     0%{ transform:translateX(-120%); }
     100%{ transform:translateX(280%); }
   }
-  @keyframes progressGlow{
-    0%,100%{ box-shadow:0 0 6px 0 rgba(255,201,60,.5); }
-    50%{ box-shadow:0 0 16px 3px rgba(255,201,60,.85); }
-  }
   tr.followed td:first-child{ border-left:3px solid var(--yellow); }
-  .manche.followed{ outline:2px solid var(--yellow); outline-offset:2px; animation: followGlow 2s ease-in-out infinite; }
-  .followed-name{ color:var(--yellow); font-weight:800; animation: followTextGlow 2s ease-in-out infinite; }
-  .posrow.followed span:first-child{ color:var(--yellow); font-weight:800; animation: followTextGlow 2s ease-in-out infinite; }
+  .manche.followed{ outline:2px solid var(--yellow); outline-offset:2px; box-shadow:0 0 10px 1px rgba(255,201,60,.4); }
+  .followed-name{ color:var(--yellow); font-weight:800; }
+  .posrow.followed span:first-child{ color:var(--yellow); font-weight:800; }
 
   .follow-toast{
     position:fixed; top:14px; left:50%; transform:translate(-50%,-20px); opacity:0;
@@ -355,6 +357,7 @@
 </header>
 <div class="stripe"></div>
 <div id="followingChip" class="following-chip"></div>
+<div id="lastSyncIndicator" class="last-sync-indicator"></div>
 <div class="projection-tabs" id="projectionTabs">
   <button id="projTabClassement" class="proj-tab-btn">Classement</button>
   <button id="projTabPlanning" class="proj-tab-btn">Planning</button>
@@ -399,6 +402,7 @@ const QR_DATA_URI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAA
 // ---------- Storage (Google Sheets via Apps Script) ----------
 let syncStatus = 'ok'; // 'ok' | 'error' | 'unconfigured' | 'pending'
 let hasPendingLocalChanges = false;
+let lastSuccessfulSync = null;
 const LOCAL_BACKUP_KEY = 'tournoi-local-backup';
 
 function saveLocalBackup(){
@@ -431,6 +435,7 @@ async function loadData(){
       clearTimeout(timeout);
       if(json && json.config !== undefined) data = json;
       syncStatus = 'ok';
+      lastSuccessfulSync = Date.now();
       delete window[cbName];
       script.remove();
       resolve();
@@ -853,6 +858,7 @@ function renderContent(){
   else if(currentTab==='scores' && unlocked) el.innerHTML = viewScores();
   attachHandlers();
   if(currentTab==='classement') animateClassementTable();
+  checkCelebration();
   if(isTabChange){
     el.classList.remove('fade-in');
     void el.offsetWidth;
@@ -871,9 +877,9 @@ function classementPodiumHtml(rows){
       const emoji = (p && p.emoji) ? p.emoji : '🎮';
       const isFollowed = r.id===followedPlayerId;
       return `<span class="player-link" data-stats-player="${r.id}" style="flex:1; text-decoration:none;">
-        <div class="place p${i+1} ${isFollowed?'followed':''}">
+        <div class="place p${i+1}">
           <div style="font-size:22px;">${medals[i]}</div>
-          <div class="avatar-badge" style="width:40px; height:40px; font-size:22px; margin:6px auto;">${emoji}</div>
+          <div class="avatar-badge" style="width:40px; height:40px; font-size:22px; margin:6px auto; position:relative;">${emoji}${isFollowed?'<span class="podium-follow-mark">👁️</span>':''}</div>
           <div style="font-weight:800; font-size:12.5px;">${r.name}</div>
           <div class="pts" style="font-size:13px; margin-top:2px;">${r.pts} pts</div>
         </div>
@@ -964,12 +970,13 @@ function tableauSectionHtml(title, rows){
   </div>`;
 }
 function qualifsCardHtml(canExport){
+  const showSearch = data.players.length >= 8;
   return `<div class="card">
     <h2>Classement Qualifs</h2>
-    <div class="search-wrap">
+    ${showSearch ? `<div class="search-wrap">
       <input class="searchbox" type="text" id="searchClassementInput" placeholder="Rechercher un joueur…" value="${searchClassement}">
       <button class="search-clear" type="button">✕</button>
-    </div>
+    </div>` : ''}
     <div id="classementResults"></div>
     <small class="hint">Barème : ${data.config.pointsTable.map((p,i)=>`${i+1}ᵉ = ${p}pt`).join(' · ')}</small>
     ${canExport ? '<div class="row" style="margin-top:12px;"><button class="secondary" id="exportImgBtn" style="margin-top:0;">🖼️ Image</button><button class="secondary" id="exportCsvBtn" style="margin-top:0;">📥 CSV</button><button class="secondary" id="printBtn" style="margin-top:0;">🖨️ PDF</button></div>' : ''}
@@ -1060,7 +1067,7 @@ function planningResultsHtml(){
     </details>`;
   }
   const html = renderGroup('🔴 En direct', liveList)
-    + renderGroup('⏭️ À venir bientôt', upcoming, 'upcoming')
+    + renderGroup('⏭️ Bientôt', upcoming, 'upcoming')
     + renderArchived(completedList);
   return html || `<div class="empty">Aucun résultat pour ce joueur.</div>`;
 }
@@ -1082,18 +1089,11 @@ function tournamentProgressHtml(){
     const done = qm.filter(mancheComplete).length;
     return progressCard('Progression des qualifs', done, total, Math.round((done/total)*100));
   }
-  let html = '';
-  const marioManches = data.manches.filter(m=>m.phase==='or');
-  const luigiManches = data.manches.filter(m=>m.phase==='argent');
-  if(marioManches.length){
-    const done = marioManches.filter(mancheComplete).length;
-    html += progressCard('🏆 Progression Mario', done, marioManches.length, Math.round((done/marioManches.length)*100));
-  }
-  if(luigiManches.length){
-    const done = luigiManches.filter(mancheComplete).length;
-    html += progressCard('🍄 Progression Luigi', done, luigiManches.length, Math.round((done/luigiManches.length)*100));
-  }
-  return html;
+  const fm = data.manches.filter(m=>m.phase!=='qualif');
+  const total = fm.length;
+  if(!total) return '';
+  const done = fm.filter(mancheComplete).length;
+  return progressCard('🏁 Progression des finales', done, total, Math.round((done/total)*100));
 }
 function myTurnBannerHtml(){
   if(!followedPlayerId) return '';
@@ -1123,6 +1123,7 @@ function myTurnBannerHtml(){
 }
 function viewPlanning(){
   if(data.manches.length===0) return `<div class="card"><div class="empty">🏁 Prêt à en découdre ?<br>Les courses vont bientôt être lancées, reviens dans un instant !</div></div>`;
+  const showSearch = data.players.length >= 8;
   const filterButtons = qualifsComplete() ? `<div class="row" style="margin-bottom:0;">
     <button type="button" class="secondary tableauFilterBtn ${planningTableauFilter==='all'?'active-filter':''}" data-filter="all" style="margin-top:0;">Tous</button>
     <button type="button" class="secondary tableauFilterBtn ${planningTableauFilter==='or'?'active-filter':''}" data-filter="or" style="margin-top:0;">🏆 Mario</button>
@@ -1130,10 +1131,10 @@ function viewPlanning(){
   </div>` : '';
   return tournamentProgressHtml() + myTurnBannerHtml() + `<div class="card">
     ${filterButtons}
-    <div class="search-wrap" style="${filterButtons?'margin-top:12px;':''}">
+    ${showSearch ? `<div class="search-wrap" style="${filterButtons?'margin-top:12px;':''}">
       <input class="searchbox" type="text" id="searchInput" placeholder="Rechercher un joueur…" value="${searchName}">
       <button class="search-clear" type="button">✕</button>
-    </div>
+    </div>` : ''}
     <div id="planningResults">${planningResultsHtml()}</div>
   </div>`;
 }
@@ -1420,10 +1421,21 @@ function attachHandlers(){
   const exportImg = document.getElementById('exportImgBtn');
   if(exportImg) exportImg.onclick = ()=>{
     const canvas = generateResultsImage();
-    const a = document.createElement('a');
-    a.download = 'classement-mario-kart.png';
-    a.href = canvas.toDataURL('image/png');
-    a.click();
+    canvas.toBlob(async (blob)=>{
+      if(blob && navigator.canShare){
+        try{
+          const file = new File([blob], 'classement-mario-kart.png', {type:'image/png'});
+          if(navigator.canShare({files:[file]})){
+            await navigator.share({ files:[file], title:'Résultats du tournoi', text:'🏆 Résultats du Tournoi Mario Kart !' });
+            return;
+          }
+        }catch(e){ /* partage annulé ou indisponible, on bascule sur le téléchargement */ }
+      }
+      const a = document.createElement('a');
+      a.download = 'classement-mario-kart.png';
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    }, 'image/png');
   };
 
   const exportCsv = document.getElementById('exportCsvBtn');
@@ -1578,6 +1590,8 @@ function attachHandlers(){
     redoStack = [];
     searchName = ''; searchClassement = ''; searchScores = '';
     planningTableauFilter = 'all';
+    confettiTriggered = false;
+    lastQualifLeader = null; lastMarioLeader = null; lastLuigiLeader = null;
     await saveData();
     updateLockBtn();
     render();
@@ -1798,6 +1812,7 @@ function updateLockBtn(){
   if(pBtn) pBtn.style.display = unlocked ? 'inline-block' : 'none';
   const syncEl = document.getElementById('syncIndicator');
   if(syncEl) syncEl.style.display = unlocked ? 'inline' : 'none';
+  updateLastSyncDisplay();
   if(!unlocked && projectionMode){
     projectionMode = false;
     document.body.classList.remove('projection');
@@ -1817,6 +1832,27 @@ document.getElementById('lockBtn').onclick = ()=>{
   }
 };
 
+let confettiTriggered = false;
+function triggerConfetti(){
+  const colors = ['#ffc93c','#e8483c','#ff6a1f','#39c98a','#3d8bfd','#d4af37'];
+  for(let i=0;i<40;i++){
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.left = Math.random()*100 + 'vw';
+    el.style.background = colors[Math.floor(Math.random()*colors.length)];
+    el.style.animationDuration = (2.2 + Math.random()*1.6) + 's';
+    el.style.animationDelay = (Math.random()*0.5) + 's';
+    el.style.setProperty('--rot', (Math.random()*600-300) + 'deg');
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(), 4500);
+  }
+}
+function checkCelebration(){
+  if(tournamentFinished() && !confettiTriggered){
+    confettiTriggered = true;
+    triggerConfetti();
+  }
+}
 let hasEverFollowed = false;
 try{ hasEverFollowed = localStorage.getItem('hasEverFollowed')==='1'; }catch(e){}
 function setFollowed(id){
@@ -1832,38 +1868,6 @@ function setFollowed(id){
   }catch(e){ /* stockage local indisponible, on continue sans persister */ }
   updateFollowBtn();
 }
-function followingSummaryText(pid){
-  if(!data.config || !data.players.length) return '';
-  let rankText, rankLabel;
-  if(qualifsComplete()){
-    const phase = data.manches.find(m=>m.phase!=='qualif' && m.players.includes(pid))?.phase || null;
-    if(phase){
-      const tRows = classementTableau(phase);
-      const rank = tRows.findIndex(r=>r.id===pid)+1;
-      rankText = rank>0 ? `${rank}${rank===1?'er':'e'}` : '—';
-      rankLabel = phase==='or' ? 'Mario' : 'Luigi';
-    } else {
-      const rows = classementGeneral();
-      const rank = rows.findIndex(r=>r.id===pid)+1;
-      rankText = rank>0 ? `${rank}${rank===1?'er':'e'}` : '—';
-      rankLabel = 'qualifs';
-    }
-  } else {
-    const rows = classementGeneral();
-    const rank = rows.findIndex(r=>r.id===pid)+1;
-    rankText = rank>0 ? `${rank}${rank===1?'er':'e'}` : '—';
-    rankLabel = 'qualifs';
-  }
-  const isLive = data.manches.some(m=>m.live && m.players.includes(pid));
-  const pendingNotLive = data.manches.filter(m=>!m.live && !mancheComplete(m));
-  const idx = pendingNotLive.findIndex(m=>m.players.includes(pid));
-  let nextText;
-  if(isLive) nextText = "c'est maintenant !";
-  else if(idx===0) nextText = 'juste après';
-  else if(idx>0) nextText = `dans ${idx} course${idx>1?'s':''}`;
-  else nextText = 'à venir';
-  return `${rankText} ${rankLabel} · ${nextText}`;
-}
 function updateFollowBtn(){
   const btn = document.getElementById('followBtn');
   const chip = document.getElementById('followingChip');
@@ -1876,8 +1880,7 @@ function updateFollowBtn(){
   if(chip){
     if(p){
       chip.classList.add('visible');
-      const summary = followingSummaryText(followedPlayerId);
-      chip.innerHTML = `<div>👁️ Tu suis : ${playerAvatarRow(followedPlayerId,20)}</div>${summary?`<div class="following-summary">${summary}</div>`:''}`;
+      chip.innerHTML = `👁️ Tu suis : ${playerAvatarRow(followedPlayerId,20)}`;
     } else {
       chip.classList.remove('visible');
       chip.innerHTML = '';
@@ -1936,6 +1939,33 @@ function showFollowToast(text){
 let lastKnownLiveIds = new Set();
 function resetLiveBaseline(){
   lastKnownLiveIds = new Set(data.manches.filter(m=>m.live).map(m=>m.id));
+}
+let lastQualifLeader = null;
+let lastMarioLeader = null;
+let lastLuigiLeader = null;
+function checkLeaderChanges(){
+  if(!data.config || !data.players.length) return;
+  if(!qualifsComplete()){
+    const rows = classementGeneral();
+    const leader = rows[0];
+    if(leader && leader.pts>0 && lastQualifLeader!==null && leader.id!==lastQualifLeader){
+      showFollowToast(`🔥 ${leader.name} passe en tête !`);
+    }
+    lastQualifLeader = leader ? leader.id : null;
+  } else {
+    const marioRows = classementTableau('or');
+    const luigiRows = classementTableau('argent');
+    const marioLeader = marioRows[0];
+    const luigiLeader = luigiRows[0];
+    if(marioLeader && marioLeader.pts>0 && lastMarioLeader!==null && marioLeader.id!==lastMarioLeader){
+      showFollowToast(`🔥 ${marioLeader.name} passe en tête du Tableau Mario !`);
+    }
+    if(luigiLeader && luigiLeader.pts>0 && lastLuigiLeader!==null && luigiLeader.id!==lastLuigiLeader){
+      showFollowToast(`🔥 ${luigiLeader.name} passe en tête du Tableau Luigi !`);
+    }
+    lastMarioLeader = marioLeader ? marioLeader.id : null;
+    lastLuigiLeader = luigiLeader ? luigiLeader.id : null;
+  }
 }
 function checkFollowedLiveAlert(){
   if(!followedPlayerId){ resetLiveBaseline(); return; }
@@ -2189,6 +2219,16 @@ function maybeShowTutorial(){
 }
 
 setTimeout(()=>{ document.getElementById('loadingScreen')?.remove(); }, 12000);
+function updateLastSyncDisplay(){
+  const el = document.getElementById('lastSyncIndicator');
+  if(!el) return;
+  if(unlocked || !lastSuccessfulSync){ el.classList.remove('stale'); return; }
+  const elapsed = Math.round((Date.now()-lastSuccessfulSync)/1000);
+  if(elapsed<=30){ el.classList.remove('stale'); return; }
+  const minutes = Math.round(elapsed/60);
+  el.textContent = minutes>=1 ? `⚠️ Pas de mise à jour depuis ${minutes} min` : `⚠️ Pas de mise à jour depuis ${elapsed}s`;
+  el.classList.add('stale');
+}
 async function init(){
   await loadData();
   if(syncStatus==='error'){
@@ -2201,6 +2241,8 @@ async function init(){
   render();
   updateSyncIndicator();
   updateFollowBtn();
+  updateLastSyncDisplay();
+  setInterval(updateLastSyncDisplay, 1000);
   document.getElementById('loadingScreen')?.remove();
   if(joueurParam && data.players.some(p=>p.id===joueurParam)){
     showPlayerStatsModal(joueurParam);
@@ -2215,6 +2257,7 @@ async function init(){
         await loadData();
       }
       checkFollowedLiveAlert();
+      checkLeaderChanges();
       render();
       updateSyncIndicator();
       updateFollowBtn();
@@ -2237,6 +2280,23 @@ window.addEventListener('beforeunload', (e)=>{
     e.returnValue = '';
   }
 });
+
+let swipeStartX = null, swipeStartY = null;
+document.getElementById('content').addEventListener('touchstart', (e)=>{
+  if(unlocked || projectionMode) return;
+  swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
+}, { passive:true });
+document.getElementById('content').addEventListener('touchend', (e)=>{
+  if(unlocked || projectionMode || swipeStartX===null) return;
+  const dx = e.changedTouches[0].clientX - swipeStartX;
+  const dy = e.changedTouches[0].clientY - swipeStartY;
+  swipeStartX = null;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5){
+    if(dx < 0 && currentTab==='planning'){ tapHaptic(); currentTab='classement'; render(); }
+    else if(dx > 0 && currentTab==='classement'){ tapHaptic(); currentTab='planning'; render(); }
+  }
+}, { passive:true });
 
 init();
 </script>
