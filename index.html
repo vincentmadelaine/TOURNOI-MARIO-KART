@@ -284,7 +284,7 @@
   .pre-tournament-dots span:nth-child(3){ animation-delay:.4s; }
   @keyframes dotBounce{ 0%,80%,100%{ transform:scale(.6); opacity:.4; } 40%{ transform:scale(1); opacity:1; } }
   .pre-tournament-track{ margin-top:26px; height:2px; background:var(--line); border-radius:2px; position:relative; }
-  .kart-emoji{ position:absolute; top:-13px; font-size:20px; animation: kartDrive 2.6s linear infinite; }
+  .kart-emoji{ position:absolute; top:-13px; font-size:20px; animation: kartDrive 2.6s linear infinite; transform:scaleX(-1); }
   @keyframes kartDrive{ from{ left:-8%; } to{ left:104%; } }
   body.pre-tournament #followBtn, body.pre-tournament #statsBtn, body.pre-tournament nav{ display:none !important; }
   body.pre-tournament main{ display:flex; align-items:center; justify-content:center; min-height:65vh; }
@@ -860,12 +860,14 @@ function renderTabs(){
 }
 
 let lastRenderedTab = null;
+let lastWaitingScreenShown = false;
 function renderContent(){
   const el = document.getElementById('content');
   const isTabChange = currentTab !== lastRenderedTab;
   const shouldShowWaitingScreen = (!data.config || data.config.hidden) && !unlocked;
   if(shouldShowWaitingScreen && currentTab!=='reglages'){
-    el.innerHTML = `<div class="pre-tournament-msg">
+    if(!lastWaitingScreenShown || isTabChange){
+      el.innerHTML = `<div class="pre-tournament-msg">
       <div class="pre-tournament-card">
         <div class="waving-flag">🏁</div>
         <div class="pre-tournament-title">Tournoi en préparation</div>
@@ -874,10 +876,15 @@ function renderContent(){
         <div class="pre-tournament-track"><span class="kart-emoji">🏎️</span></div>
       </div>
     </div>`;
-  } else if(currentTab==='classement') el.innerHTML = viewClassement();
-  else if(currentTab==='planning') el.innerHTML = viewPlanning();
-  else if(currentTab==='reglages' && unlocked) el.innerHTML = viewReglages();
-  else if(currentTab==='scores' && unlocked) el.innerHTML = viewScores();
+    }
+    lastWaitingScreenShown = true;
+  } else {
+    lastWaitingScreenShown = false;
+    if(currentTab==='classement') el.innerHTML = viewClassement();
+    else if(currentTab==='planning') el.innerHTML = viewPlanning();
+    else if(currentTab==='reglages' && unlocked) el.innerHTML = viewReglages();
+    else if(currentTab==='scores' && unlocked) el.innerHTML = viewScores();
+  }
   attachHandlers();
   if(currentTab==='classement') animateClassementTable();
   checkCelebration();
